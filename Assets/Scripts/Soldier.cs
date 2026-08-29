@@ -22,7 +22,11 @@ namespace TotalDeck
         private float moveSpeed = GameConfig.RegimentSpeed * 1.8f;
         private bool hasFormationTarget = false;
 
-        // Melee engagement
+        // Fighting while marching slows the soldier down (TW-style combat pace)
+        const float FightMoveMultiplier = 0.55f;
+
+        // Melee engagement — only attack orders let a soldier chase;
+        // marching soldiers trade blows on the move instead (TW-style)
         private Soldier engagedEnemy;
 
         // Visual
@@ -127,9 +131,21 @@ namespace TotalDeck
                 if (engagedEnemy != null && !engagedEnemy.gameObject.activeSelf)
                     engagedEnemy = null;
 
-                // Seek an enemy within engagement radius
-                if (engagedEnemy == null)
+                // Auto-engage behavior:
+                // - Attack order: charge any foe within engage radius (front rank
+                //   dives in; back ranks follow the advancing formation slots)
+                // - Idle regiment: seek foes within engage radius, break off to fight
+                // - March order: hold the column, fight on the move instead
+                bool chase = ParentRegiment.IsAttacking || !ParentRegiment.IsMoving;
+                if (engagedEnemy == null && chase)
+                {
                     engagedEnemy = FindNearestEnemy(GameConfig.EngageRadius);
+                }
+                else if (engagedEnemy != null && ParentRegiment.IsAttacking == false && ParentRegiment.IsMoving)
+                {
+                    // A move order arrived mid-fight: drop the chase, keep swinging
+                    engagedEnemy = null;
+                }
 
                 if (engagedEnemy != null)
                 {
@@ -137,9 +153,15 @@ namespace TotalDeck
                 }
                 else if (hasFormationTarget)
                 {
-                    // No enemies nearby: resume formation
-                    MoveTowardFormation();
+                    // Follow the formation (which advances toward the enemy on
+                    // attack orders) AND swing at anyone in contact along the way
+                    fightingMove = SwingAtContact();
+                    MoveTowardFormation(fightingMove ? FightMoveMultiplier : 1f);
                 }
+
+                // Hard collision AFTER all movement: friend or foe, no two
+                // soldiers may occupy the same spot
+                ResolveHardCollisions();
             }
             else
             {
@@ -151,7 +173,10 @@ namespace TotalDeck
             }
         }
 
-        void MoveTowardFormation()
+        // Local flag for the current frame's fight-move state
+        bool fightingMove;
+
+        void MoveTowardFormation(float speedMultiplier = 1f)
         {
             Vector3 toTarget = formationTarget - transform.position;
             toTarget.y = 0f;
@@ -166,20 +191,22 @@ namespace TotalDeck
                     transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, Time.deltaTime * 360f);
                 }
 
-                float step = moveSpeed * Time.deltaTime;
+                float step = moveSpeed * speedMultiplier * Time.deltaTime;
                 if (step > dist) step = dist;
                 Vector3 move = toTarget.normalized * step;
 
                 // Apply separation: push away from nearby soldiers to avoid overlap
                 Vector3 separation = ComputeSeparation();
-                move += separation * moveSpeed * Time.deltaTime;
+                move += separation * moveSpeed * speedMultiplier * Time.deltaTime;
 
                 transform.position += move;
             }
         }
 
         /// <summary>
-        /// Simple separation steering: push away from nearby overlapping soldiers.
+        /// Simple separation steering: push away from nearby FRIENDLY soldiers
+        /// to avoid overlap. Enemies are excluded — spacing against the foe is
+        /// the job of melee range, otherwise marching through a crowd crawls.
         /// Colliders live on the child "Model" object, so resolve the Soldier
         /// via GetComponentInParent.
         /// </summary>
@@ -194,6 +221,7 @@ namespace TotalDeck
             {
                 Soldier other = overlapBuffer[i].GetComponentInParent<Soldier>();
                 if (other == null || other == this) continue;
+                if (other.Team != Team) continue;
                 if (!other.gameObject.activeSelf) continue;
 
                 Vector3 away = transform.position - other.transform.position;
@@ -210,6 +238,44 @@ namespace TotalDeck
                 push = (push / count).normalized * 0.5f;
 
             return push;
+        }
+
+        /// <summary>
+        /// Positional collision solver: push self out of ANY overlapping
+        /// soldier (friend or foe). Runs after movement so overlap exists
+        /// for at most one frame. Half-and-half separation keeps both
+        /// soldiers' movement stable under mutual resolution.
+        /// </summary>
+        void ResolveHardCollisions()
+        {
+            float minDist = GameConfig.SoldierDiameter;
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, minDist, overlapBuffer);
+
+            Vector3 correction = Vector3.zero;
+            for (int i = 0; i < hitCount; i++)
+            {
+                Soldier other = overlapBuffer[i].GetComponentInParent<Soldier>();
+                if (other == null || other == this) continue;
+                if (!other.gameObject.activeSelf) continue;
+
+                Vector3 away = transform.position - other.transform.position;
+                away.y = 0f;
+                float d = away.magnitude;
+                if (d < 0.0001f)
+                {
+                    // Perfect overlap: nudge in a stable pseudo-random direction
+                    away = new Vector3(Mathf.Sin(transform.position.x * 12.9898f), 0f, Mathf.Cos(transform.position.z * 78.233f));
+                    d = 0.0001f;
+                }
+                if (d < minDist)
+                {
+                    float push = (minDist - d) * 0.5f; // half each; the other resolves too
+                    correction += away / d * push;
+                }
+            }
+
+            if (correction != Vector3.zero)
+                transform.position += correction;
         }
 
         /// <summary>
@@ -276,7 +342,37 @@ namespace TotalDeck
 
         public void Disengage()
         {
+            // Clear chase state; the soldier keeps fighting on the move,
+            // so extraction costs hits but never becomes a punching bag
             engagedEnemy = null;
+        }
+
+        public bool IsFighting => engagedEnemy != null;
+
+        /// <summary>
+        /// Strike the nearest enemy in contact WITHOUT stopping — used while
+        /// marching so movement never disables combat (Total War style).
+        /// Returns true when the soldier is trading blows on the move.
+        /// </summary>
+        bool SwingAtContact()
+        {
+            Soldier enemy = FindNearestEnemy(GameConfig.AttackRange);
+            if (enemy == null) return false;
+
+            // Face the foe even while moving
+            Vector3 toEnemy = enemy.transform.position - transform.position;
+            toEnemy.y = 0f;
+            if (toEnemy.sqrMagnitude > 0.0001f)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(toEnemy, Vector3.up);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, Time.deltaTime * 540f);
+            }
+
+            if (attackCooldown > 0f) return true;
+
+            enemy.TakeDamage(attack);
+            attackCooldown = Random.Range(GameConfig.AttackCooldownMin, GameConfig.AttackCooldownMax);
+            return true;
         }
 
         /// <summary>

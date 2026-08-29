@@ -32,6 +32,37 @@ namespace TotalDeck
         // Public accessors for visualization
         public Vector3 CurrentMoveTarget => targetPosition;
         public bool HasMoveQueue => moveQueue.Count > 0;
+        public bool IsAttacking => targetEnemyRegiment != null;
+
+        /// <summary>
+        /// True while the regiment has a move order it has not reached yet.
+        /// Idle regiments auto-engage nearby foes instead of holding ground.
+        /// </summary>
+        public bool IsMoving
+        {
+            get
+            {
+                if (moveQueue.Count > 0) return true;
+                if (targetEnemyRegiment != null) return false; // attack order, not a march
+                return Vector3.Distance(transform.position, targetPosition) > 1.5f;
+            }
+        }
+
+        /// <summary>
+        /// True while any alive soldier is melee-locked with an enemy.
+        /// </summary>
+        public bool IsEngaged
+        {
+            get
+            {
+                foreach (var s in Soldiers)
+                {
+                    if (s == null || !s.gameObject.activeSelf) continue;
+                    if (s.IsFighting) return true;
+                }
+                return false;
+            }
+        }
 
         void OnDestroy()
         {
@@ -131,12 +162,13 @@ namespace TotalDeck
 
         void HandleCombatMovement()
         {
-            // Follow target enemy regiment
+            // Attack order: follow the enemy, halt on victory
             if (targetEnemyRegiment != null)
             {
                 if (targetEnemyRegiment.AliveCount == 0)
                 {
                     targetEnemyRegiment = null;
+                    targetPosition = transform.position;
                 }
                 else
                 {
@@ -144,14 +176,24 @@ namespace TotalDeck
                 }
             }
 
+            // Hold the line while any soldier is melee-locked — UNLESS this is
+            // an attack order: then the whole regiment keeps pressing forward
+            // so back ranks flood into the fight instead of standing idle
+            bool holdAnchor = IsEngaged && !IsAttacking;
+            if (holdAnchor) return;
+
+            // Attack order with engaged soldiers: stop at contact distance so
+            // the formation presses up to the enemy line without walking through it
+            float stopDist = IsAttacking ? GameConfig.AttackRange : 1.5f;
+
             Vector3 toTarget = targetPosition - transform.position;
             toTarget.y = 0f;
             float dist = toTarget.magnitude;
 
-            if (dist <= 1.5f)
+            if (dist <= stopDist)
             {
                 // Reached destination, dequeue next waypoint if available
-                if (moveQueue.Count > 0)
+                if (!IsAttacking && moveQueue.Count > 0)
                 {
                     targetPosition = moveQueue.Dequeue();
                 }

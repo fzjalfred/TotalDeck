@@ -49,6 +49,9 @@ namespace TotalDeck
         public const float AttackRange = 2.2f;
         public const float EngageRadius = 6f;
 
+        // Hard collision: any two soldiers (friend or foe) never overlap
+        public const float SoldierDiameter = SoldierRadius * 2f;
+
         // Economy
         public const int BaseIncome = 100;
         public const int KillBounty = 2;
