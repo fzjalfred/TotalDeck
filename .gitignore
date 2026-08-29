@@ -1,0 +1,47 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]serSettings/
+MemoryCaptures/
+[Rr]ecordings/
+
+# IDE generated
+.vs/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+UpgradeLog.htm
+
+# Build results
+[Bb]uild/
+[Bb]uilds/
+[Ll]ocalProfiles/
+
+# Unity crash reports
+sysinfo.txt
+crash-*.md
+
+# Codely
+.codely-cli/**
+.codely.packages/**
+.com-unity-codely.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Diagnostic screenshots
+diagnose_*.png
+verify_*.png

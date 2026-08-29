@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Card RTS - Economy & Scaling Draw Cost</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+    body { background: #1a1a1a; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+    
+    /* 顶部状态栏 */
+    #top-bar {
+      height: 55px; background: #2a2a2a; border-bottom: 2px solid #444;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    }
+    .phase-badge { font-weight: bold; padding: 4px 12px; border-radius: 4px; }
+    .phase-planning { background: #2b5c8f; }
+    .phase-combat { background: #8f2b2b; }
+    
+    /* 战场区域 */
+    #canvas-container { flex: 1; position: relative; background: #2d4a22; cursor: crosshair; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    /* 操作提示浮层 */
+    #hints {
+      position: absolute; top: 20px; left: 20px; pointer-events: none;
+      background: rgba(0,0,0,0.6); padding: 10px 14px; border-radius: 6px; font-size: 13px; line-height: 1.6;
+    }
+
+    /* 底部操作区：左侧抽卡，右侧手牌 */
+    #bottom-panel {
+      height: 150px; background: #222; border-top: 2px solid #444;
+      display: flex; align-items: stretch;
+    }
+    
+    /* 抽卡区 */
+    #market-container {
+      width: 200px; background: #1a1a1a; border-right: 2px solid #444; padding: 15px;
+      display: flex; flex-direction: column; gap: 12px; justify-content: center;
+    }
+    .market-title { font-weight: bold; font-size: 14px; color: #ffd700; text-align: center; }
+    .btn-buy { 
+      background: #333; color: #fff; border: 1px solid #777; border-radius: 6px; padding: 12px; 
+      cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s;
+    }
+    .btn-buy:hover { background: #444; border-color: #ffd700; }
+    .btn-buy:active { transform: scale(0.98); }
+    .btn-buy .price { color: #00ffaa; font-weight: bold; font-size: 16px; }
+
+    /* 手牌区 */
+    #hand-container {
+      flex: 1; display: flex; align-items: center; justify-content: flex-start; padding: 0 20px; gap: 15px; overflow-x: auto;
+    }
+    .card {
+      width: 130px; height: 115px; background: #333; border: 2px solid #777; flex-shrink: 0;
+      border-radius: 6px; padding: 8px; cursor: pointer; transition: 0.15s;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .card:hover { transform: translateY(-8px); border-color: #ffd700; }
+    .card.selected { border-color: #00ffaa; box-shadow: 0 0 10px #00ffaa; }
+    .card-cost { background: #009688; border-radius: 4px; padding: 2px 6px; display: inline-block; font-size: 12px; font-weight: bold; color: white; }
+    .card-title { font-weight: bold; font-size: 14px; margin-top: 4px; }
+    .card-desc { font-size: 11px; color: #bbb; line-height: 1.2; }
+  </style>
+</head>
+<body>
+
+  <div id="top-bar">
+    <div>
+      阶段: <span id="phase-text" class="phase-badge phase-planning">规划阶段</span>
+      倒计时: <span id="timer-text">20s</span>
+    </div>
+    <!-- 顶部经济信息栏 -->
+    <div style="text-align: center;">
+      <div style="font-size: 18px; font-weight: bold; color: #00ffaa;">国库资金: $<span id="treasury-text">250</span></div>
+      <div style="font-size: 12px; color: #ddd; margin-top: 2px;">
+        预期收入: $<span id="income-text">100</span> | 
+        维护费: <span style="color: #ff6b6b;">-$<span id="upkeep-text">0</span></span> |
+        <span id="balance-text" style="font-weight: bold; margin-left: 5px; padding: 2px 6px; border-radius: 3px; background: rgba(0,0,0,0.3);">结余: +$100</span>
+      </div>
+    </div>
+    <button id="btn-skip" style="padding: 6px 14px; cursor: pointer; background: #444; color: #fff; border: 1px solid #777; border-radius: 4px;">立即交战</button>
+  </div>
+
+  <div id="canvas-container">
+    <div id="hints">
+      <strong>【经济与抽卡系统】</strong><br>
+      • 左下角抽卡费用每抽一次递增 (50→100→150)，下回合重置<br>
+      • 击杀敌军赚取赏金，回合结束发放<br>
+      • 每支兵团每回合需扣除 <strong>$15</strong> 维护费<br>
+      • 若资金为负数，发生哗变大逃兵！<br>
+      <strong>【基本操作】</strong><br>
+      • 左键/框选 己方兵团，右键行军或冲锋
+    </div>
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="bottom-panel">
+    <div id="market-container">
+      <div class="market-title">军需指令</div>
+      <!-- 统一的递增抽卡按钮 -->
+      <button class="btn-buy" id="btn-draw" onclick="buyCard()">
+        <span>抽取卡牌</span><span class="price" id="draw-cost-text">$50</span>
+      </button>
+    </div>
+    <div id="hand-container">
+      <!-- 手牌由 JS 动态生成 -->
+    </div>
+  </div>
+
+<script>
+// ==================== 游戏状态与核心配置 ====================
+const CONFIG = {
+  PLANNING_TIME: 20, 
+  COMBAT_TIME: 60,   
+  REGIMENT_SIZE: 50,
+  SOLDIER_RADIUS: 3.5,
+  SPACING: 12,       
+  COLS: 10,          
+  SELECT_RADIUS: 65  
+};
+
+// 经济系统配置
+const BASE_INCOME = 100;         
+const KILL_REWARD = 2;           
+const UPKEEP_PER_REGIMENT = 15;  
+
+let currentPhase = 'PLANNING'; 
+let phaseTimer = CONFIG.PLANNING_TIME;
+let turnCount = 1;
+
+// 经济与抽卡状态
+let treasury = 250;              
+let pendingBounty = 0;           
+let currentDrawCost = 50;        // ⚡ 当前抽卡所需费用，每回合重置
+
+const regiments = []; 
+let selectedRegiments = [];  
+let selectedCard = null;     
+
+// 玩家初始手牌
+let hand = [
+  { id: 1, type: 'UNIT', name: '步兵卡', cost: 60, desc: '召唤一个 50 人的步兵兵团 (打出花费$60)' },
+  { id: 2, type: 'SPELL', name: '战地医疗', cost: 40, desc: '指定友方兵团补充15名士兵 (打出花费$40)' }
+];
+
+// ==================== 兵团与单兵系统 ====================
+class Soldier {
+  constructor(relX, relY, team) {
+    this.relX = relX; 
+    this.relY = relY;
+    this.x = 0;
+    this.y = 0;
+    this.team = team;
+    this.hp = 20;
+    this.attack = 4;
+    this.isDead = false;
+    this.attackCooldown = 0;
+  }
+}
+
+class Regiment {
+  constructor(x, y, team, count = CONFIG.REGIMENT_SIZE) {
+    this.x = x;
+    this.y = y;
+    this.targetX = x;
+    this.targetY = y;
+    this.team = team; 
+    this.angle = team === 'player' ? -Math.PI / 2 : Math.PI / 2; 
+    this.speed = 45; 
+    this.soldiers = [];
+    this.targetEnemyRegiment = null;
+
+    this.initSoldiers(count);
+    this.updateSoldierPositions();
+  }
+
+  initSoldiers(count) {
+    this.soldiers = [];
+    const cols = CONFIG.COLS;
+    const rows = Math.ceil(count / cols);
+    for (let i = 0; i < count; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const relX = (col - (cols - 1) / 2) * CONFIG.SPACING;
+      const relY = (row - (rows - 1) / 2) * CONFIG.SPACING;
+      this.soldiers.push(new Soldier(relX, relY, this.team));
+    }
+  }
+
+  addSoldiers(amount) {
+    const current = this.aliveCount();
+    let target = current + amount;
+    
+    if (amount < 0) {
+      target = Math.max(0, target);
+      let toKill = current - target;
+      for (let s of this.soldiers) {
+        if (!s.isDead && toKill > 0) {
+          s.isDead = true;
+          toKill--;
+        }
+      }
+    } else {
+      target = Math.min(CONFIG.REGIMENT_SIZE, target);
+      this.initSoldiers(target);
+      this.updateSoldierPositions();
+    }
+  }
+
+  aliveCount() {
+    return this.soldiers.filter(s => !s.isDead).length;
+  }
+
+  updateSoldierPositions() {
+    const cos = Math.cos(this.angle + Math.PI/2);
+    const sin = Math.sin(this.angle + Math.PI/2);
+    
+    for (const s of this.soldiers) {
+      if (s.isDead) continue;
+      s.x = this.x + (s.relX * cos - s.relY * sin);
+      s.y = this.y + (s.relX * sin + s.relY * cos);
+    }
+  }
+
+  update(dt) {
+    if (this.aliveCount() === 0) return;
+
+    if (currentPhase === 'COMBAT') {
+      if (this.targetEnemyRegiment) {
+        if (this.targetEnemyRegiment.aliveCount() === 0) {
+          this.targetEnemyRegiment = null;
+        } else {
+          this.targetX = this.targetEnemyRegiment.x;
+          this.targetY = this.targetEnemyRegiment.y;
+        }
+      }
+
+      const dx = this.targetX - this.x;
+      const dy = this.targetY - this.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 15) {
+        this.angle = Math.atan2(dy, dx);
+        this.x += (dx / dist) * this.speed * dt;
+        this.y += (dy / dist) * this.speed * dt;
+      }
+
+      const enemyTeam = this.team === 'player' ? 'enemy' : 'player';
+      const enemyRegiments = regiments.filter(r => r.team === enemyTeam && r.aliveCount() > 0);
+
+      for (const soldier of this.soldiers) {
+        if (soldier.isDead) continue;
+        if (soldier.attackCooldown > 0) {
+          soldier.attackCooldown -= dt;
+          continue;
+        }
+
+        let closestEnemySoldier = null;
+        let minDist = 22; 
+
+        for (const er of enemyRegiments) {
+          for (const es of er.soldiers) {
+            if (es.isDead) continue;
+            const edist = Math.hypot(es.x - soldier.x, es.y - soldier.y);
+            if (edist < minDist) {
+              minDist = edist;
+              closestEnemySoldier = es;
+            }
+          }
+        }
+
+        if (closestEnemySoldier) {
+          closestEnemySoldier.hp -= soldier.attack;
+          soldier.attackCooldown = 0.8 + Math.random() * 0.4; 
+          
+          if (closestEnemySoldier.hp <= 0) {
+            closestEnemySoldier.isDead = true;
+            if (closestEnemySoldier.team === 'enemy' && this.team === 'player') {
+              pendingBounty += KILL_REWARD;
+            }
+          }
+        }
+      }
+    }
+    
+    this.updateSoldierPositions();
+  }
+
+  draw(ctx) {
+    if (this.aliveCount() === 0) return;
+
+    if (selectedRegiments.includes(this) && !this.targetEnemyRegiment) {
+      const dist = Math.hypot(this.targetX - this.x, this.targetY - this.y);
+      if (dist > 20) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.targetX, this.targetY);
+        ctx.strokeStyle = 'rgba(0, 255, 170, 0.5)';
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(this.targetX, this.targetY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 255, 170, 0.8)';
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    if (selectedRegiments.includes(this)) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, CONFIG.SELECT_RADIUS, 0, Math.PI * 2);
+      ctx.strokeStyle = '#00ffaa';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const s of this.soldiers) {
+      if (s.isDead) continue;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, CONFIG.SOLDIER_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = this.team === 'player' ? '#4dabf7' : '#ff6b6b';
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    const barWidth = 50;
+    const barHeight = 5;
+    const currentAlive = this.aliveCount();
+    const ratio = currentAlive / CONFIG.REGIMENT_SIZE;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(this.x - barWidth / 2, this.y - 45, barWidth, barHeight);
+    ctx.fillStyle = this.team === 'player' ? '#22b8cf' : '#fa5252';
+    ctx.fillRect(this.x - barWidth / 2, this.y - 45, barWidth * ratio, barHeight);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${currentAlive}/${CONFIG.REGIMENT_SIZE}`, this.x, this.y - 50);
+  }
+}
+
+// ==================== 初始化与经济管理 ====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function initBattlefield() {
+  regiments.length = 0;
+  regiments.push(new Regiment(canvas.width / 2, canvas.height * 0.75, 'player'));
+  regiments.push(new Regiment(canvas.width / 2, canvas.height * 0.25, 'enemy'));
+}
+initBattlefield();
+
+function switchPhase() {
+  if (currentPhase === 'PLANNING') {
+    currentPhase = 'COMBAT';
+    phaseTimer = CONFIG.COMBAT_TIME;
+    selectedCard = null;
+  } else {
+    currentPhase = 'PLANNING';
+    phaseTimer = CONFIG.PLANNING_TIME;
+    turnCount++;
+    
+    // ⚡ 进入新回合，重置抽卡费用
+    currentDrawCost = 50;
+    
+    const playerRegiments = regiments.filter(r => r.team === 'player' && r.aliveCount() > 0);
+    const totalUpkeep = playerRegiments.length * UPKEEP_PER_REGIMENT;
+    const grossIncome = BASE_INCOME + pendingBounty; 
+    const netIncome = grossIncome - totalUpkeep;     
+    treasury += netIncome;
+    
+    if (treasury < 0) {
+      const deficit = Math.abs(treasury);
+      for(let reg of playerRegiments) {
+          reg.addSoldiers(-deficit); 
+      }
+      treasury = 0; 
+    }
+    
+    pendingBounty = 0; 
+
+    if (turnCount % 2 === 0) {
+      regiments.push(new Regiment(canvas.width * (0.3 + Math.random() * 0.4), canvas.height * 0.2, 'enemy'));
+    }
+  }
+  renderHand();
+  updateUI();
+}
+
+// ⚡ 新的抽卡机制：单次递增费用
+function buyCard() {
+  if (currentPhase !== 'PLANNING') return;
+  
+  if (treasury >= currentDrawCost) {
+    treasury -= currentDrawCost;
+    
+    // 统一卡池：根据概率生成卡牌
+    let newCard;
+    const rand = Math.random();
+    if (rand < 0.4) {
+      newCard = { id: Date.now(), type: 'UNIT', name: '步兵卡', cost: 60, desc: '召唤一个 50 人的步兵兵团 (打出花费$60)' };
+    } else if (rand < 0.8) {
+      newCard = { id: Date.now(), type: 'SPELL', name: '战地医疗', cost: 40, desc: '指定友方兵团补充15名士兵 (打出花费$40)' };
+    } else {
+      newCard = { id: Date.now(), type: 'UNIT', name: '重装精锐', cost: 120, desc: '强力部队，维持费与步兵相同 (打出花费$120)' };
+    }
+    
+    hand.push(newCard);
+    
+    // 每次抽卡后，下一次抽卡的费用增加 $50
+    currentDrawCost += 50;
+    
+    renderHand();
+    updateUI();
+  }
+}
+
+function updateUI() {
+  const phaseText = document.getElementById('phase-text');
+  phaseText.textContent = currentPhase === 'PLANNING' ? `规划阶段 (第${turnCount}回合)` : '交战阶段 (赚取赏金中...)';
+  phaseText.className = `phase-badge ${currentPhase === 'PLANNING' ? 'phase-planning' : 'phase-combat'}`;
+  
+  document.getElementById('timer-text').textContent = `${Math.ceil(phaseTimer)}s`;
+  
+  // 更新国库数字
+  document.getElementById('treasury-text').textContent = treasury;
+  
+  // 计算预期收入与维护费
+  const totalIncome = BASE_INCOME + pendingBounty;
+  const playerRegiments = regiments.filter(r => r.team === 'player' && r.aliveCount() > 0);
+  const totalUpkeep = playerRegiments.length * UPKEEP_PER_REGIMENT;
+  const netBalance = totalIncome - totalUpkeep; 
+
+  document.getElementById('income-text').textContent = totalIncome;
+  document.getElementById('upkeep-text').textContent = totalUpkeep;
+  
+  const balanceEl = document.getElementById('balance-text');
+  if (netBalance >= 0) {
+    balanceEl.textContent = `本局结余: +$${netBalance}`;
+    balanceEl.style.color = '#00ffaa';
+    balanceEl.style.background = 'rgba(0, 255, 170, 0.15)';
+  } else {
+    balanceEl.textContent = `赤字警告: -$${Math.abs(netBalance)}`;
+    balanceEl.style.color = '#ff6b6b';
+    balanceEl.style.background = 'rgba(255, 107, 107, 0.15)';
+  }
+
+  // ⚡ 更新抽卡按钮 UI 状态与数字
+  const drawBtn = document.getElementById('btn-draw');
+  const drawCostText = document.getElementById('draw-cost-text');
+  if (drawCostText) drawCostText.textContent = `$${currentDrawCost}`;
+  
+  if (drawBtn) {
+    if (treasury < currentDrawCost || currentPhase !== 'PLANNING') {
+      drawBtn.style.opacity = '0.4';
+      drawBtn.style.pointerEvents = 'none';
+    } else {
+      drawBtn.style.opacity = '1';
+      drawBtn.style.pointerEvents = 'auto';
+    }
+  }
+
+  document.getElementById('bottom-panel').style.display = currentPhase === 'PLANNING' ? 'flex' : 'none';
+}
+
+function renderHand() {
+  const container = document.getElementById('hand-container');
+  container.innerHTML = '';
+  
+  hand.forEach((card) => {
+    const cardEl = document.createElement('div');
+    cardEl.className = `card ${selectedCard === card ? 'selected' : ''}`;
+    
+    if (treasury < card.cost) {
+      cardEl.style.opacity = '0.5';
+    }
+
+    cardEl.innerHTML = `
+      <div>
+        <span class="card-cost">$${card.cost}</span>
+        <div class="card-title">${card.name}</div>
+      </div>
+      <div class="card-desc">${card.desc}</div>
+    `;
+    cardEl.onclick = () => {
+      if (treasury >= card.cost) {
+        selectedCard = selectedCard === card ? null : card;
+        renderHand();
+      }
+    };
+    container.appendChild(cardEl);
+  });
+}
+renderHand();
+document.getElementById('btn-skip').onclick = switchPhase;
+
+// ==================== 鼠标控制逻辑 ====================
+let isDragging = false;
+let dragStartX = 0, dragStartY = 0;
+let dragEndX = 0, dragEndY = 0;
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return; 
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (currentPhase === 'PLANNING' && selectedCard) {
+    if (selectedCard.type === 'UNIT') {
+      if (my > canvas.height * 0.5) {
+        regiments.push(new Regiment(mx, my, 'player'));
+        treasury -= selectedCard.cost;
+        hand = hand.filter(c => c !== selectedCard);
+        selectedCard = null;
+        renderHand(); updateUI();
+      }
+    } else if (selectedCard.type === 'SPELL') {
+      const clickedReg = regiments.find(r => r.team === 'player' && Math.hypot(r.x - mx, r.y - my) < CONFIG.SELECT_RADIUS);
+      if (clickedReg) {
+        clickedReg.addSoldiers(15);
+        treasury -= selectedCard.cost;
+        hand = hand.filter(c => c !== selectedCard);
+        selectedCard = null;
+        renderHand(); updateUI();
+      }
+    }
+    return;
+  }
+
+  isDragging = true;
+  dragStartX = mx; dragStartY = my;
+  dragEndX = mx;   dragEndY = my;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const rect = canvas.getBoundingClientRect();
+  dragEndX = e.clientX - rect.left;
+  dragEndY = e.clientY - rect.top;
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (e.button !== 0 || !isDragging) return;
+  isDragging = false;
+  
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const dist = Math.hypot(mx - dragStartX, my - dragStartY);
+
+  if (dist < 8) {
+    const clicked = regiments.find(r => r.team === 'player' && r.aliveCount() > 0 && Math.hypot(r.x - mx, r.y - my) < CONFIG.SELECT_RADIUS);
+    selectedRegiments = clicked ? [clicked] : [];
+  } else {
+    const minX = Math.min(dragStartX, dragEndX);
+    const maxX = Math.max(dragStartX, dragEndX);
+    const minY = Math.min(dragStartY, dragEndY);
+    const maxY = Math.max(dragStartY, dragEndY);
+
+    selectedRegiments = regiments.filter(r => 
+      r.team === 'player' && r.aliveCount() > 0 && 
+      r.x >= minX && r.x <= maxX && r.y >= minY && r.y <= maxY
+    );
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (selectedRegiments.length === 0) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const targetEnemy = regiments.find(r => r.team === 'enemy' && r.aliveCount() > 0 && Math.hypot(r.x - mx, r.y - my) < CONFIG.SELECT_RADIUS);
+
+  selectedRegiments.forEach((reg, index) => {
+    if (targetEnemy) {
+      reg.targetEnemyRegiment = targetEnemy;
+    } else {
+      reg.targetEnemyRegiment = null;
+      const offset = (index * 60) - ((selectedRegiments.length - 1) * 30);
+      reg.targetX = mx + offset;
+      reg.targetY = my;
+    }
+  });
+});
+
+// ==================== 主渲染与更新循环 ====================
+let lastTime = performance.now();
+
+function gameLoop(now) {
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+
+  phaseTimer -= dt;
+  if (phaseTimer <= 0) switchPhase();
+  
+  updateUI();
+
+  for (const reg of regiments) {
+    reg.update(dt);
+  }
+
+  if (currentPhase === 'COMBAT') {
+    const enemyRegs = regiments.filter(r => r.team === 'enemy' && r.aliveCount() > 0);
+    const playerRegs = regiments.filter(r => r.team === 'player' && r.aliveCount() > 0);
+
+    for (const er of enemyRegs) {
+      if (!er.targetEnemyRegiment && playerRegs.length > 0) {
+        let nearest = playerRegs[0];
+        let minDist = Math.hypot(nearest.x - er.x, nearest.y - er.y);
+        for (const pr of playerRegs) {
+          const d = Math.hypot(pr.x - er.x, pr.y - er.y);
+          if (d < minDist) { minDist = d; nearest = pr; }
+        }
+        er.targetEnemyRegiment = nearest;
+      }
+    }
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (currentPhase === 'PLANNING') {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height * 0.5);
+    ctx.lineTo(canvas.width, canvas.height * 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼ 己方部署区 (下半场)', canvas.width / 2, canvas.height * 0.53);
+    ctx.restore();
+  }
+
+  for (const reg of regiments) reg.draw(ctx);
+
+  if (isDragging) {
+    ctx.fillStyle = 'rgba(0, 255, 170, 0.15)';
+    ctx.strokeStyle = 'rgba(0, 255, 170, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(dragStartX, dragStartY, dragEndX - dragStartX, dragEndY - dragStartY);
+    ctx.strokeRect(dragStartX, dragStartY, dragEndX - dragStartX, dragEndY - dragStartY);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
