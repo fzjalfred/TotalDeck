@@ -48,9 +48,6 @@ namespace TotalDeck
         public const float AttackCooldownMax = 1.2f;
         public const float AttackRange = 2.2f;
         public const float EngageRadius = 6f;
-        // Non-attack-order chases give up past this distance from the
-        // formation anchor and fall back to their slot
-        public const float ChaseLeash = 9f;
 
         // Hard collision: any two soldiers (friend or foe) never overlap
         public const float SoldierDiameter = SoldierRadius * 2f;

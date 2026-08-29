@@ -24,10 +24,15 @@ namespace TotalDeck
 
         // Fighting while marching slows the soldier down (TW-style combat pace)
         const float FightMoveMultiplier = 0.55f;
+        // Auto-engage chase window: if no melee contact within this time, give
+        // up the chase and return to the formation slot
+        const float ChaseGiveUpTime = 2f;
 
         // Melee engagement — only attack orders let a soldier chase;
         // marching soldiers trade blows on the move instead (TW-style)
         private Soldier engagedEnemy;
+        // Auto-engage chase timer: if no contact within this window, give up
+        private float chaseTimer;
 
         // Visual
         private Renderer soldierRenderer;
@@ -140,6 +145,7 @@ namespace TotalDeck
                 if (engagedEnemy == null && chase)
                 {
                     engagedEnemy = FindNearestEnemy(GameConfig.EngageRadius);
+                    chaseTimer = ChaseGiveUpTime;
                 }
                 else if (engagedEnemy != null && ParentRegiment.IsAttacking == false && ParentRegiment.IsMoving)
                 {
@@ -149,9 +155,22 @@ namespace TotalDeck
 
                 if (engagedEnemy != null)
                 {
-                    EngageEnemy(engagedEnemy);
+                    // Non-attack-order chases time out: no contact within the
+                    // window means the foe got away — fall back into line
+                    if (!ParentRegiment.IsAttacking)
+                    {
+                        chaseTimer -= Time.deltaTime;
+                        if (chaseTimer <= 0f || !IsInCombatWith(engagedEnemy))
+                        {
+                            engagedEnemy = null;
+                        }
+                    }
+
+                    if (engagedEnemy != null)
+                        EngageEnemy(engagedEnemy);
                 }
-                else if (hasFormationTarget)
+
+                if (engagedEnemy == null && hasFormationTarget)
                 {
                     // Follow the formation (which advances toward the enemy on
                     // attack orders) AND swing at anyone in contact along the way
@@ -307,29 +326,11 @@ namespace TotalDeck
 
         /// <summary>
         /// Charge and melee an engaged enemy. Closes distance, faces the target,
-        /// and swings whenever the cooldown allows. Chases started by auto-engage
-        /// (no attack order) are leashed: past ChaseLeash from the anchor the
-        /// soldier breaks off and returns to its slot.
+        /// and swings whenever the cooldown allows. Chase duration is handled
+        /// by the chaseTimer in Update — attack orders chase indefinitely.
         /// </summary>
         void EngageEnemy(Soldier enemy)
         {
-            // Leash check: only for opportunistic chases (no attack order).
-            // Attack orders have unlimited pursuit.
-            if (!ParentRegiment.IsAttacking)
-            {
-                float distFromAnchor = Vector3.Distance(
-                    transform.position, ParentRegiment.transform.position);
-                if (distFromAnchor > GameConfig.ChaseLeash)
-                {
-                    // Too far from the line — break off and walk back.
-                    // Contact fighting still applies on the way home.
-                    engagedEnemy = null;
-                    fightingMove = SwingAtContact();
-                    MoveTowardFormation(fightingMove ? FightMoveMultiplier : 1f);
-                    return;
-                }
-            }
-
             Vector3 toEnemy = enemy.transform.position - transform.position;
             toEnemy.y = 0f;
             float dist = toEnemy.magnitude;
@@ -367,6 +368,16 @@ namespace TotalDeck
         }
 
         public bool IsFighting => engagedEnemy != null;
+
+        /// <summary>
+        /// True while the chase target is within a generous pursuit envelope —
+        /// slightly beyond melee range so brief gaps don't reset the fight.
+        /// </summary>
+        bool IsInCombatWith(Soldier enemy)
+        {
+            return enemy != null && enemy.gameObject.activeSelf &&
+                   Vector3.Distance(enemy.transform.position, transform.position) <= GameConfig.EngageRadius;
+        }
 
         /// <summary>
         /// Strike the nearest enemy in contact WITHOUT stopping — used while
