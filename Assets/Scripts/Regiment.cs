@@ -18,6 +18,8 @@ namespace TotalDeck
         private Regiment targetEnemyRegiment;
         private Queue<Vector3> moveQueue = new Queue<Vector3>();
         private List<Vector3> formationOffsets = new List<Vector3>();
+        // Set on death; formation compacts on the next UpdateSoldierPositions pass
+        private bool formationDirty;
         private float moveSpeed = GameConfig.RegimentSpeed;
         private float currentAngle;
 
@@ -216,15 +218,44 @@ namespace TotalDeck
         /// <summary>
         /// Feed each soldier its formation slot in world space;
         /// the soldier walks there on its own (Soldier.Update).
+        /// On rank gaps (deaths) the formation compacts lazily: the
+        /// rebuild only runs when a death flagged it, amortized into
+        /// this already-running O(n) loop — zero steady-state cost.
         /// </summary>
         void UpdateSoldierPositions()
         {
+            if (formationDirty)
+            {
+                CompactFormation();
+                formationDirty = false;
+            }
+
             for (int i = 0; i < Soldiers.Count && i < formationOffsets.Count; i++)
             {
                 var s = Soldiers[i];
                 if (s == null || !s.gameObject.activeSelf) continue;
                 Vector3 worldOffset = transform.rotation * formationOffsets[i];
                 s.SetFormationTarget(transform.position + worldOffset);
+            }
+        }
+
+        /// <summary>
+        /// Close ranks TW-style: alive soldiers are re-assigned to the front
+        /// slots of a fresh AliveCount-sized block, preserving their relative
+        /// order, so back rows shift forward into gaps left by the dead.
+        /// </summary>
+        void CompactFormation()
+        {
+            int cols = GameConfig.RegimentCols;
+            int rows = Mathf.CeilToInt(AliveCount / (float)cols);
+
+            int slot = 0;
+            for (int i = 0; i < Soldiers.Count && slot < AliveCount; i++)
+            {
+                var s = Soldiers[i];
+                if (s == null || !s.gameObject.activeSelf) continue;
+                formationOffsets[i] = GetFormationOffset(slot % cols, slot / cols, cols, rows);
+                slot++;
             }
         }
 
@@ -375,6 +406,7 @@ namespace TotalDeck
         public void OnSoldierDied(Soldier soldier)
         {
             AliveCount = Mathf.Max(0, AliveCount - 1);
+            formationDirty = true;
 
             // Award bounty if player killed an enemy soldier
             if (soldier.Team == Team.Enemy)

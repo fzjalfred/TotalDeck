@@ -307,10 +307,29 @@ namespace TotalDeck
 
         /// <summary>
         /// Charge and melee an engaged enemy. Closes distance, faces the target,
-        /// and swings whenever the cooldown allows.
+        /// and swings whenever the cooldown allows. Chases started by auto-engage
+        /// (no attack order) are leashed: past ChaseLeash from the anchor the
+        /// soldier breaks off and returns to its slot.
         /// </summary>
         void EngageEnemy(Soldier enemy)
         {
+            // Leash check: only for opportunistic chases (no attack order).
+            // Attack orders have unlimited pursuit.
+            if (!ParentRegiment.IsAttacking)
+            {
+                float distFromAnchor = Vector3.Distance(
+                    transform.position, ParentRegiment.transform.position);
+                if (distFromAnchor > GameConfig.ChaseLeash)
+                {
+                    // Too far from the line — break off and walk back.
+                    // Contact fighting still applies on the way home.
+                    engagedEnemy = null;
+                    fightingMove = SwingAtContact();
+                    MoveTowardFormation(fightingMove ? FightMoveMultiplier : 1f);
+                    return;
+                }
+            }
+
             Vector3 toEnemy = enemy.transform.position - transform.position;
             toEnemy.y = 0f;
             float dist = toEnemy.magnitude;
