@@ -298,8 +298,12 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Nearest enemy soldier within radius. Colliders live on the child
-        /// "Model" object, so resolve the Soldier via GetComponentInParent.
+        /// Nearest enemy soldier within radius, EXCLUDING enemies already
+        /// locked by a friendly chaser. Prevents whole ranks piling onto one
+        /// foe (overkill waste) while others stand free — evens out DPS
+        /// distribution between the two lines.
+        /// Colliders live on the child "Model" object, so resolve the Soldier
+        /// via GetComponentInParent.
         /// </summary>
         Soldier FindNearestEnemy(float radius)
         {
@@ -313,12 +317,33 @@ namespace TotalDeck
                 if (enemy == null) continue;
                 if (enemy.Team == Team) continue;
                 if (!enemy.gameObject.activeSelf) continue;
+                if (enemy.IsTargeted) continue; // already engaged by a friend
 
                 float sqr = (enemy.transform.position - transform.position).sqrMagnitude;
                 if (sqr < minSqr)
                 {
                     minSqr = sqr;
                     closest = enemy;
+                }
+            }
+
+            // Everyone already paired: fall back to plain nearest (overkill
+            // is better than standing idle)
+            if (closest == null)
+            {
+                minSqr = float.MaxValue;
+                for (int i = 0; i < hitCount; i++)
+                {
+                    Soldier enemy = overlapBuffer[i].GetComponentInParent<Soldier>();
+                    if (enemy == null) continue;
+                    if (enemy.Team == Team) continue;
+                    if (!enemy.gameObject.activeSelf) continue;
+                    float sqr = (enemy.transform.position - transform.position).sqrMagnitude;
+                    if (sqr < minSqr)
+                    {
+                        minSqr = sqr;
+                        closest = enemy;
+                    }
                 }
             }
             return closest;
@@ -368,6 +393,27 @@ namespace TotalDeck
         }
 
         public bool IsFighting => engagedEnemy != null;
+
+        /// <summary>
+        /// True when at least one enemy chaser has locked THIS soldier.
+        /// Scans own regiment's attackers only (small set) — no global registry.
+        /// </summary>
+        public bool IsTargeted
+        {
+            get
+            {
+                if (ParentRegiment == null) return false;
+                foreach (var s in ParentRegiment.Soldiers)
+                {
+                    if (s == null || !s.gameObject.activeSelf) continue;
+                    if (s.engagedEnemyTarget == this) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>Internal: the soldier this unit has locked (for IsTargeted).</summary>
+        public Soldier engagedEnemyTarget => engagedEnemy;
 
         /// <summary>
         /// True while the chase target is within a generous pursuit envelope —

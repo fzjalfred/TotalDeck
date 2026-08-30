@@ -344,6 +344,7 @@ GameObject:
   m_Component:
   - component: {fileID: 367092457}
   - component: {fileID: 367092456}
+  - component: {fileID: 367092458}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: GameManager
@@ -370,6 +371,10 @@ MonoBehaviour:
   soldierPrefab: {fileID: 1032663434792194647, guid: 7792a62a79238fd4ca25a4fce1d35760, type: 3}
   playerDeployZone: {fileID: 0}
   enemySpawnPoint: {fileID: 0}
+  cardPool:
+  - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
+  - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
+  - {fileID: 11400000, guid: f25f88e16fd116342bb539458ec8c7e5, type: 2}
 --- !u!4 &367092457
 Transform:
   m_ObjectHideFlags: 0
@@ -385,6 +390,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &367092458
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 367092455}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e03bf166f6b41e47b604f92c0d71e57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &654142334
 GameObject:
   m_ObjectHideFlags: 0

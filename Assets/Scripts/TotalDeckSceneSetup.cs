@@ -91,6 +91,10 @@ namespace TotalDeck.EditorTools
             gm.soldierPrefab = soldierPrefab;
             gm.regimentPrefabs = new GameObject[] { infantryPrefab, heavyPrefab };
 
+            // ── AIController ─────────────────────────
+            GameObject aiObj = new GameObject("AIController");
+            aiObj.AddComponent<AIController>();
+
             // ── CardManager ──────────────────────────
             GameObject cmObj = new GameObject("CardManager");
             CardManager cm = cmObj.AddComponent<CardManager>();
@@ -102,6 +106,7 @@ namespace TotalDeck.EditorTools
 
             cm.cardPool = new CardData[] { infantryCard, healCard, heavyCard };
             cm.startingHand = new CardData[] { infantryCard, healCard };
+            gm.cardPool = cm.cardPool;
 
             // ── RTSInputController ───────────────────
             GameObject rtsObj = new GameObject("RTSInputController");

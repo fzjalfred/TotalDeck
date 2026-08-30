@@ -56,7 +56,6 @@ namespace TotalDeck
             {
                 GameManager.Instance.OnPhaseChanged += OnPhaseChanged;
                 GameManager.Instance.OnEconomyChanged += UpdateEconomyUI;
-                GameManager.Instance.OnTreasuryChanged += UpdateEconomyUI;
             }
 
             if (CardManager.Instance != null)
@@ -74,7 +73,6 @@ namespace TotalDeck
             {
                 GameManager.Instance.OnPhaseChanged -= OnPhaseChanged;
                 GameManager.Instance.OnEconomyChanged -= UpdateEconomyUI;
-                GameManager.Instance.OnTreasuryChanged -= UpdateEconomyUI;
             }
             if (CardManager.Instance != null)
             {

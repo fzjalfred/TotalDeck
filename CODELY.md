@@ -13,6 +13,8 @@
 - [2026-08-30 02:41:19] TotalDeck 战斗模型采用全面战争语义（用户多次纠正后确立）：移动命令不使战斗计算失效（行军士兵接触敌人时边走边打、正常互损）；接战移动减速（FightMoveMultiplier=0.55）；攻击命令才允许脱阵追击并冻结军团锚点；歼敌后锚点就地驻停；非攻击命令的自动接敌追击有 3 秒时间窗（ChaseGiveUpTime，追不上就回队列，勿用距离拴绳——用户否决过 ChaseLeash 方案觉得僵硬）；士兵阵亡后阵型懒补位（formationDirty 标记 + 下一帧 CompactFormation，勿每次死亡/移动全量重算）。**Why:** 用户明确要求还原全战手感——此前"移动=纯挨打"、"撤退2秒不还手"、距离拴绳三个方案都被否决。**How to apply:** 后续新增单位/状态/阵型逻辑时，遵守"移动≠免战、接战减速、攻击令无限追、自动追击3秒超时、阵型懒补位"五条规则，勿重新引入已否决的方案。
 
 - [2026-08-30 02:19:05] TotalDeck 单位平衡原则（用户 2026-08-30 确认）：双方只保证同兵种属性完全一致（同一 GameConfig 常量 + 同一 soldierPrefab 引用，审计过无按队伍分支的数值代码），不保证战斗结果对称——50v50 混战的锁敌顺序/朝向/碰撞推挤会混沌放大战损差，这是全战类正常手感，不要再为"战损不对称"做修复。**Why:** 用户明确说"只要确保两者属性数值、攻击都一样就行，不一定非要保证战斗结果"。**How to apply:** 后续遇到战斗结果不对称的反馈，先审计属性来源是否对称即可，勿试图用对称化锁敌/伤害逻辑消除结果差异。
+- [2026-08-30 13:24:41] TotalDeck 经济系统已重构为对称双玩家架构（2026-08-30）：PlayerState 纯 C# 类承载金钱/赏金/抽卡费/手牌/出牌，GameManager 持 Player+Enemy 两个实例走完全相同的规则（抽卡递增费、出牌扣费、收入/维护/破产逃兵结算）；AIController 在准备阶段每 0.5s 把钱花光（抽卡→法术→部署最贵兵）。**Why:** 用户要求"AI 需要是一个玩家的实例，和玩家一样的机制，每回合把钱花光"——旧 EnemyAI 无经济概念且每 2 回合白送兵已被替换。**How to apply:** 后续加新卡种/经济机制时改 PlayerState 一处即可双方生效；勿给 AI 写专属数值特权；场景中 GameManager 需链接 cardPool 且挂 AIController（TotalDeckSceneSetup 已含）。
+- [2026-08-30 14:18:01] TotalDeck 测试遗留物污染场景的坑（2026-08-30 确认）：在 Play Mode 下用 exec_runtime_script 生成测试军团/士兵后，工具重载（observation invalidated）瞬间场景可能被意外保存，把运行时 Clone 对象永久写入 .unity 文件——下次开局这些无 Initialize 的"白兵"会和正常出生军团混战，且其维护费会耗尽 AI 经济，表现为"开局玩不了"。**Why:** 用户报告开局即坏，排查发现场景里残留 8 个测试军团 408 个对象（z=±5 测试点位）。**How to apply:** 遇到"开局异常/白兵/军团数量不对"，先 stop 进 Edit Mode 数场景里 name 含 "Prefab(Clone)" 的对象——非 0 就是污染，DestroyImmediate 后 MarkSceneDirty+SaveOpenScenes；测试脚本尽量用 Object.Destroy 而非依赖场景重置，重要 SaveOpenScenes 调用前确认不在测试会话中。
 
 ### Reference
 

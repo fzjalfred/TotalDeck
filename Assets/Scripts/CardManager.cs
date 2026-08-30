@@ -5,8 +5,9 @@ using UnityEngine;
 namespace TotalDeck
 {
     /// <summary>
-    /// Manages the player's hand, card drawing with scaling cost,
-    /// and playing cards (deploying units or casting spells).
+    /// Human player's hand UI bridge. Card ownership and economy live in
+    /// GameManager.Player (PlayerState); this class only mirrors the hand
+    /// for the UI and forwards draw/play actions.
     /// </summary>
     public class CardManager : MonoBehaviour
     {
@@ -18,8 +19,8 @@ namespace TotalDeck
         [Header("Initial Hand")]
         public CardData[] startingHand;
 
-        // ── Runtime State ──────────────────────────────────
-        public List<CardData> Hand { get; } = new List<CardData>();
+        // ── Runtime State (mirrors GameManager.Player.Hand) ──
+        public List<CardData> Hand => GameManager.Instance.Player.Hand;
         public CardData SelectedCard { get; private set; }
 
         // ── Events ─────────────────────────────────────────
@@ -36,48 +37,22 @@ namespace TotalDeck
             Instance = this;
         }
 
-        void Start()
+        /// <summary>
+        /// Called by GameManager after it populates both starting hands.
+        /// </summary>
+        public void NotifyHandChanged()
         {
-            // Populate starting hand with runtime copies
-            Hand.Clear();
-            if (startingHand != null)
-            {
-                foreach (var card in startingHand)
-                {
-                    if (card != null)
-                        Hand.Add(card.CreateRuntimeCopy());
-                }
-            }
             OnHandChanged?.Invoke();
         }
 
         /// <summary>
-        /// Draw a card from the pool. Cost scales with each draw this planning phase.
+        /// Draw a card for the player. Cost scaling lives in PlayerState.
         /// </summary>
         public bool DrawCard()
         {
-            if (GameManager.Instance.CurrentPhase != GamePhase.Planning)
-                return false;
-
-            int cost = GameManager.Instance.CurrentDrawCost;
-            if (!GameManager.Instance.SpendTreasury(cost))
-                return false;
-
-            // Weighted random from card pool
-            CardData template = PickRandomCard();
-            if (template == null) return false;
-
-            Hand.Add(template.CreateRuntimeCopy());
-            GameManager.Instance.IncrementDrawCost();
-
-            OnHandChanged?.Invoke();
-            return true;
-        }
-
-        CardData PickRandomCard()
-        {
-            if (cardPool == null || cardPool.Length == 0) return null;
-            return cardPool[UnityEngine.Random.Range(0, cardPool.Length)];
+            bool ok = GameManager.Instance.Player.DrawCard();
+            if (ok) OnHandChanged?.Invoke();
+            return ok;
         }
 
         /// <summary>
@@ -95,7 +70,7 @@ namespace TotalDeck
             }
             else
             {
-                if (GameManager.Instance.Treasury < card.playCost)
+                if (!GameManager.Instance.Player.CanAfford(card.playCost))
                     return;
                 SelectedCard = card;
             }
@@ -111,47 +86,42 @@ namespace TotalDeck
         {
             if (SelectedCard == null) return false;
             if (GameManager.Instance.CurrentPhase != GamePhase.Planning) return false;
-            if (!GameManager.Instance.SpendTreasury(SelectedCard.playCost)) return false;
+
+            var player = GameManager.Instance.Player;
 
             if (SelectedCard.cardType == CardType.Unit)
             {
-                GameManager.Instance.SpawnRegiment(worldPos, Team.Player, SelectedCard.prefabIndex);
+                if (!GameManager.Instance.IsInDeployZone(worldPos, Team.Player))
+                    return false;
+                if (!player.PlayUnitCard(SelectedCard, worldPos))
+                    return false;
             }
             else if (SelectedCard.cardType == CardType.Spell)
             {
+                // For the player, spells need a clicked target like before
                 Regiment target = FindRegimentAt(worldPos, Team.Player);
-                if (target != null)
-                {
-                    ApplySpellToRegiment(SelectedCard, target);
-                }
-                else
-                {
-                    // Refund if no valid target
-                    GameManager.Instance.SpendTreasury(-SelectedCard.playCost);
+                if (target == null) return false;
+                if (!SpendAndCast(player, SelectedCard, target))
                     return false;
-                }
             }
 
-            Hand.Remove(SelectedCard);
             SelectedCard = null;
             OnHandChanged?.Invoke();
             return true;
         }
 
-        void ApplySpellToRegiment(CardData spell, Regiment target)
+        bool SpendAndCast(PlayerState player, CardData spell, Regiment target)
         {
-            if (spell.healAmount > 0)
-            {
-                target.ModifySoldiers(spell.healAmount);
-            }
-            if (spell.damageAmount > 0)
-            {
-                target.DamageAllSoldiers(spell.damageAmount);
-            }
+            if (!player.CanAfford(spell.playCost)) return false;
+            player.Spend(spell.playCost);
+
+            if (spell.healAmount > 0) target.ModifySoldiers(spell.healAmount);
+            if (spell.damageAmount > 0) target.DamageAllSoldiers(spell.damageAmount);
             if (spell.attackBuff != 0f || spell.hpBuff != 0f || spell.speedBuff != 0f)
-            {
                 target.ApplyBuff(spell.attackBuff, spell.hpBuff, spell.speedBuff);
-            }
+
+            player.Hand.Remove(spell);
+            return true;
         }
 
         /// <summary>
@@ -161,9 +131,8 @@ namespace TotalDeck
         {
             Regiment closest = null;
             float minDist = GameConfig.SelectRadius;
-            foreach (var reg in GameManager.Instance.AllRegiments)
+            foreach (var reg in GameManager.Instance.RegimentsOf(team))
             {
-                if (reg.Team != team || reg.AliveCount == 0) continue;
                 float dist = Vector3.Distance(reg.transform.position, worldPos);
                 if (dist < minDist)
                 {

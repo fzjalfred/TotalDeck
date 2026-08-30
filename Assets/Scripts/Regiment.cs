@@ -70,11 +70,13 @@ namespace TotalDeck
         {
             gameManager?.UnregisterRegiment(this);
 
-            // Soldiers are unparented free-walkers; clean them up with the regiment
+            // Soldiers are unparented free-walkers; clean them up with the
+            // regiment. Deactivate first so no Update tick runs mid-teardown.
             foreach (var s in Soldiers)
             {
-                if (s != null && s.gameObject != null)
-                    Destroy(s.gameObject);
+                if (s == null || s.gameObject == null) continue;
+                s.gameObject.SetActive(false);
+                Destroy(s.gameObject);
             }
         }
 
@@ -145,7 +147,10 @@ namespace TotalDeck
         Vector3 GetFormationOffset(int col, int row, int cols, int rows)
         {
             float x = (col - (cols - 1) * 0.5f) * GameConfig.SoldierSpacing;
-            float z = (row - (rows - 1) * 0.5f) * GameConfig.SoldierSpacing;
+            // Front-aligned depth: row 0 sits AT the anchor, deeper rows extend
+            // behind it. The front line never shifts when row count changes —
+            // gaps are filled from the back, TW-style.
+            float z = -row * GameConfig.SoldierSpacing;
             return new Vector3(x, 0f, z);
         }
 
@@ -184,8 +189,9 @@ namespace TotalDeck
             bool holdAnchor = IsEngaged && !IsAttacking;
             if (holdAnchor) return;
 
-            // Attack order with engaged soldiers: stop at contact distance so
-            // the formation presses up to the enemy line without walking through it
+            // Attack order with engaged soldiers: stop so the FRONT LINE
+            // (the anchor) reaches contact distance of the enemy — the
+            // formation body trails behind and never walks through the foe
             float stopDist = IsAttacking ? GameConfig.AttackRange : 1.5f;
 
             Vector3 toTarget = targetPosition - transform.position;
@@ -360,7 +366,8 @@ namespace TotalDeck
                     {
                         Soldiers[i].Die();
                         toKill--;
-                        AliveCount--;
+                        // AliveCount-- happens in OnSoldierDied (via Die) —
+                        // decrementing here too would double-count
                     }
                 }
             }
@@ -402,16 +409,21 @@ namespace TotalDeck
 
         /// <summary>
         /// Called by Soldier when it dies. Handles bounty and cleanup.
+        /// The killer's side earns the bounty into its own PlayerState.
         /// </summary>
         public void OnSoldierDied(Soldier soldier)
         {
             AliveCount = Mathf.Max(0, AliveCount - 1);
             formationDirty = true;
 
-            // Award bounty if player killed an enemy soldier
-            if (soldier.Team == Team.Enemy)
+            // Bounty goes to the OPPOSITE side of the victim
+            var gm = GameManager.Instance;
+            if (gm != null)
             {
-                GameManager.Instance?.AddBounty(GameConfig.KillBounty);
+                if (soldier.Team == Team.Enemy)
+                    gm.AddBounty(GameConfig.KillBounty);
+                else
+                    gm.AddEnemyBounty(GameConfig.KillBounty);
             }
 
             if (AliveCount == 0)

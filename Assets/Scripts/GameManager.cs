@@ -5,8 +5,9 @@ using UnityEngine;
 namespace TotalDeck
 {
     /// <summary>
-    /// Central game manager singleton. Controls phase timer, economy system,
-    /// and the bankruptcy/desertion mechanic.
+    /// Central game manager singleton. Controls phase timer and hosts one
+    /// PlayerState instance per side — the AI runs the exact same economy
+    /// and card rules as the human player.
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -22,28 +23,37 @@ namespace TotalDeck
         public Transform playerDeployZone;
         public Transform enemySpawnPoint;
 
+        [Header("Card Deck")]
+        public CardData[] cardPool;
+
         // ── Phase & Timer ──────────────────────────────────
         public GamePhase CurrentPhase { get; private set; } = GamePhase.Planning;
         public float PhaseTimer { get; private set; }
         public int TurnCount { get; private set; } = 1;
 
-        // ── Economy ────────────────────────────────────────
-        public int Treasury { get; private set; } = GameConfig.StartingTreasury;
-        public int PendingBounty { get; private set; } = 0;
-        public int CurrentDrawCost { get; private set; } = GameConfig.InitialDrawCost;
+        // ── Per-player state ───────────────────────────────
+        public PlayerState Player { get; private set; }
+        public PlayerState Enemy { get; private set; }
+
+        /// <summary>Human player's treasury (UI convenience).</summary>
+        public int Treasury => Player.Treasury;
+        /// <summary>Human player's current draw cost (UI convenience).</summary>
+        public int CurrentDrawCost => Player.CurrentDrawCost;
 
         // ── Regiment Tracking ──────────────────────────────
         public List<Regiment> AllRegiments { get; } = new List<Regiment>();
-        public List<Regiment> PlayerRegiments => AllRegiments.FindAll(r => r.Team == Team.Player && r.AliveCount > 0);
-        public List<Regiment> EnemyRegiments => AllRegiments.FindAll(r => r.Team == Team.Enemy && r.AliveCount > 0);
+        public List<Regiment> PlayerRegiments => RegimentsOf(Team.Player);
+        public List<Regiment> EnemyRegiments => RegimentsOf(Team.Enemy);
+
+        public List<Regiment> RegimentsOf(Team team) =>
+            AllRegiments.FindAll(r => r.Team == team && r.AliveCount > 0);
 
         // ── Events ─────────────────────────────────────────
         public event Action<GamePhase> OnPhaseChanged;
         public event Action OnEconomyChanged;
-        public event Action OnTreasuryChanged;
 
-        // ── Economy getters for UI ─────────────────────────
-        public int TotalIncome => GameConfig.BaseIncome + PendingBounty;
+        // ── Economy getters for UI (player side) ───────────
+        public int TotalIncome => GameConfig.BaseIncome + Player.PendingBounty;
         public int TotalUpkeep => PlayerRegiments.Count * GameConfig.UpkeepPerRegiment;
         public int NetBalance => TotalIncome - TotalUpkeep;
 
@@ -56,6 +66,24 @@ namespace TotalDeck
             }
             Instance = this;
             PhaseTimer = GameConfig.PlanningTime;
+            Player = new PlayerState(Team.Player, this);
+            Enemy = new PlayerState(Team.Enemy, this);
+        }
+
+        void Start()
+        {
+            // Starting hands: both sides draw the same opening hand
+            var cm = CardManager.Instance;
+            if (cm != null && cm.startingHand != null)
+            {
+                foreach (var card in cm.startingHand)
+                {
+                    if (card == null) continue;
+                    Player.Hand.Add(card.CreateRuntimeCopy());
+                    Enemy.Hand.Add(card.CreateRuntimeCopy());
+                }
+            }
+            cm?.NotifyHandChanged();
         }
 
         void Update()
@@ -68,8 +96,8 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Switch between Planning and Combat phases, running economy settlement
-        /// when entering a new Planning phase.
+        /// Switch between Planning and Combat phases. Entering Planning runs
+        /// the settlement for BOTH players under identical rules.
         /// </summary>
         public void SwitchPhase()
         {
@@ -84,8 +112,8 @@ namespace TotalDeck
                 PhaseTimer = GameConfig.PlanningTime;
                 TurnCount++;
                 SettleEconomy();
-                CurrentDrawCost = GameConfig.InitialDrawCost;
-                SpawnEnemyReinforcements();
+                Player.ResetDrawCost();
+                Enemy.ResetDrawCost();
             }
 
             OnPhaseChanged?.Invoke(CurrentPhase);
@@ -93,65 +121,49 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Settle economy: income + bounty - upkeep. If treasury goes negative,
-        /// trigger bankruptcy and desertion.
+        /// Settle both players: income + bounty - upkeep, bankruptcy desertion.
         /// </summary>
         void SettleEconomy()
         {
-            var playerRegs = PlayerRegiments;
-            int upkeep = playerRegs.Count * GameConfig.UpkeepPerRegiment;
-            int gross = GameConfig.BaseIncome + PendingBounty;
-            int net = gross - upkeep;
-            Treasury += net;
-
-            if (Treasury < 0)
-            {
-                int deficit = Mathf.Abs(Treasury);
-                // Desertion: each regiment loses 'deficit' soldiers' worth of HP
-                foreach (var reg in playerRegs)
-                {
-                    reg.ModifySoldiers(-deficit);
-                }
-                Treasury = 0;
-            }
-
-            PendingBounty = 0;
-            OnTreasuryChanged?.Invoke();
+            Player.SettleEconomy(PlayerRegiments.Count);
+            Enemy.SettleEconomy(EnemyRegiments.Count);
+            OnEconomyChanged?.Invoke();
         }
 
-        /// <summary>
-        /// Enemy gets a new regiment every 2 turns.
-        /// </summary>
-        void SpawnEnemyReinforcements()
-        {
-            if (TurnCount % 2 == 0 && enemySpawnPoint != null)
-            {
-                Vector3 pos = enemySpawnPoint.position;
-                pos.x += UnityEngine.Random.Range(-3f, 3f);
-                SpawnRegiment(pos, Team.Enemy, 0);
-            }
-        }
+        // ── Economy Operations (player-facing, kept for UI) ──
 
-        // ── Economy Operations ────────────────────────────
-
-        public bool SpendTreasury(int amount)
-        {
-            if (Treasury < amount) return false;
-            Treasury -= amount;
-            OnTreasuryChanged?.Invoke();
-            return true;
-        }
+        public bool SpendTreasury(int amount) => Player.Spend(amount);
 
         public void AddBounty(int amount)
         {
-            PendingBounty += amount;
+            Player.AddBounty(amount);
             OnEconomyChanged?.Invoke();
+        }
+
+        public void AddEnemyBounty(int amount)
+        {
+            Enemy.AddBounty(amount);
         }
 
         public void IncrementDrawCost()
         {
-            CurrentDrawCost += GameConfig.DrawCostIncrement;
+            // Player's draw cost now lives in PlayerState; kept as a no-op hook
+            // for legacy UI calls. The real increment happens inside DrawCard.
             OnEconomyChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Weighted-uniform random pick from the shared card pool.
+        /// </summary>
+        public CardData PickRandomCard()
+        {
+            if (cardPool == null || cardPool.Length == 0)
+            {
+                var cm = CardManager.Instance;
+                if (cm == null || cm.cardPool == null || cm.cardPool.Length == 0) return null;
+                return cm.cardPool[UnityEngine.Random.Range(0, cm.cardPool.Length)];
+            }
+            return cardPool[UnityEngine.Random.Range(0, cardPool.Length)];
         }
 
         // ── Regiment Spawning ─────────────────────────────
@@ -187,12 +199,12 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Check if a position is in the player's deployment zone (lower half of battlefield).
+        /// Check if a position is in the given team's deployment half.
+        /// Player deploys at +Z; the enemy mirrors at -Z.
         /// </summary>
-        public bool IsInPlayerZone(Vector3 worldPos)
+        public bool IsInDeployZone(Vector3 worldPos, Team team)
         {
-            // Assuming battlefield is centered at origin on XZ plane, player zone is +Z half
-            return worldPos.z > 0f;
+            return team == Team.Player ? worldPos.z > 0f : worldPos.z < 0f;
         }
     }
 }

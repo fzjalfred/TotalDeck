@@ -3,8 +3,9 @@ using UnityEngine;
 namespace TotalDeck
 {
     /// <summary>
-    /// Simple AI for enemy regiments: auto-targets the nearest
-    /// player regiment during combat phase.
+    /// Per-regiment combat brain for AI-owned regiments: auto-targets the
+    /// nearest player regiment during combat. Economy and card spending
+    /// live in AIController.
     /// </summary>
     public class EnemyAI : MonoBehaviour
     {
@@ -37,9 +38,6 @@ namespace TotalDeck
 
         void FindNearestEnemy()
         {
-            // If already has a target and it's alive, keep it
-            // (Regiment handles clearing dead targets internally)
-
             var playerRegs = GameManager.Instance.PlayerRegiments;
             if (playerRegs.Count == 0) return;
 
