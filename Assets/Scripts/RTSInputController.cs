@@ -50,6 +50,11 @@ namespace TotalDeck
 
         void Update()
         {
+            // Pause / menu guard: no battlefield input while the game is
+            // frozen (menus, pause overlay, results screen)
+            if (Time.timeScale == 0f) return;
+            if (GameManager.Instance != null && GameManager.Instance.State != GameState.Playing) return;
+
             bool inCombat = GameManager.Instance != null && GameManager.Instance.CurrentPhase == GamePhase.Combat;
 
             // Left mouse button down

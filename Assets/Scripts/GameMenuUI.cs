@@ -41,7 +41,15 @@ namespace TotalDeck
         public Button rematchButton;
         public Button backToMenuButton;
 
+        [Header("Pause Menu (Esc in match)")]
+        public GameObject pausePanel;
+        public Button resumeButton;
+        public Button pauseSettingsButton;
+        public Button exitToMenuButton;
+        public Text pauseNoticeText;
+
         float noticeTimer;
+        float pauseNoticeTimer;
         MapDef[] availableMaps;
 
         void Start()
@@ -55,6 +63,10 @@ namespace TotalDeck
             if (rematchButton != null) rematchButton.onClick.AddListener(OnRematchClicked);
             if (backToMenuButton != null) backToMenuButton.onClick.AddListener(OnBackToMenuClicked);
 
+            if (resumeButton != null) resumeButton.onClick.AddListener(OnResumeClicked);
+            if (pauseSettingsButton != null) pauseSettingsButton.onClick.AddListener(() => ShowPauseNotice("设置功能开发中，敬请期待"));
+            if (exitToMenuButton != null) exitToMenuButton.onClick.AddListener(OnExitToMenuClicked);
+
             if (playerSlotDropdown != null)
                 playerSlotDropdown.onValueChanged.AddListener(_ => OnPlayerSlotChanged());
             if (enemySlotDropdown != null)
@@ -64,6 +76,7 @@ namespace TotalDeck
             {
                 GameManager.Instance.OnPhaseChanged += OnPhaseChanged;
                 GameManager.Instance.OnGameEnded += OnGameEnded;
+                GameManager.Instance.OnStateChanged += OnStateChanged;
             }
 
             PopulateMapDropdown();
@@ -76,7 +89,17 @@ namespace TotalDeck
             {
                 GameManager.Instance.OnPhaseChanged -= OnPhaseChanged;
                 GameManager.Instance.OnGameEnded -= OnGameEnded;
+                GameManager.Instance.OnStateChanged -= OnStateChanged;
             }
+        }
+
+        /// <summary>
+        /// GameState changed (e.g. exited to menu from the pause screen) —
+        /// refresh all panels. Without this, ReturnToMenu left the HUD on.
+        /// </summary>
+        void OnStateChanged(GameState state)
+        {
+            ApplyState(state);
         }
 
         // ── Setup screen data ─────────────────────────────
@@ -202,8 +225,10 @@ namespace TotalDeck
 
             if (inMenu)
             {
-                // Main menu shows either the button stack or the setup screen
-                ShowMenuSubscreens(setupScreenActive);
+                // Entering the menu always lands on the button stack —
+                // a stale setup/pause state must not survive a state change
+                setupScreenActive = false;
+                ShowMenuSubscreens(false);
             }
 
             if (gameOver)
@@ -296,6 +321,84 @@ namespace TotalDeck
             if (menuNoticeText == null) return;
             menuNoticeText.text = msg;
             noticeTimer = 2.5f;
+        }
+
+        void ShowPauseNotice(string msg)
+        {
+            if (pauseNoticeText == null) return;
+            pauseNoticeText.text = msg;
+            pauseNoticeTimer = 2.5f;
+        }
+
+        // ── Pause menu (Esc during a match) ───────────────
+
+        /// <summary>True while the pause overlay is shown over a match.</summary>
+        bool pauseShown;
+
+        void Update()
+        {
+            // Fade notices (unscaled so they work while paused)
+            if (noticeTimer > 0f)
+            {
+                noticeTimer -= Time.unscaledDeltaTime;
+                if (noticeTimer <= 0f && menuNoticeText != null)
+                    menuNoticeText.text = "";
+            }
+            if (pauseNoticeTimer > 0f)
+            {
+                pauseNoticeTimer -= Time.unscaledDeltaTime;
+                if (pauseNoticeTimer <= 0f && pauseNoticeText != null)
+                    pauseNoticeText.text = "";
+            }
+
+            // Esc toggles the pause menu — only during a match
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                var gm = GameManager.Instance;
+                if (gm != null && gm.State == GameState.Playing)
+                {
+                    if (pauseShown) OnResumeClicked();
+                    else ShowPauseMenu();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Overlay the pause menu and freeze the battlefield.
+        /// </summary>
+        void ShowPauseMenu()
+        {
+            if (pausePanel == null) return;
+            pauseShown = true;
+            pausePanel.SetActive(true);
+            if (pauseNoticeText != null) pauseNoticeText.text = "";
+            Time.timeScale = 0f; // freeze gameplay; UI runs on unscaled time
+        }
+
+        /// <summary>
+        /// Close the pause overlay and resume the match.
+        /// </summary>
+        public void OnResumeClicked()
+        {
+            if (pausePanel == null) return;
+            pauseShown = false;
+            pausePanel.SetActive(false);
+            if (GameManager.Instance != null && GameManager.Instance.State == GameState.Playing)
+                Time.timeScale = 1f;
+        }
+
+        /// <summary>
+        /// Abandon the match and return to the main menu.
+        /// </summary>
+        void OnExitToMenuClicked()
+        {
+            if (pausePanel != null)
+            {
+                pauseShown = false;
+                pausePanel.SetActive(false);
+            }
+            setupScreenActive = false;
+            GameManager.Instance?.ReturnToMenu();
         }
 
         // ── Button handlers ───────────────────────────────

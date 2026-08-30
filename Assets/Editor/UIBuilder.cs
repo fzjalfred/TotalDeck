@@ -327,6 +327,30 @@ namespace TotalDeck.EditorTools
             menuUI.enemyStatsText = eRowText;
             menuUI.rematchButton = rematchBtn.GetComponent<Button>();
             menuUI.backToMenuButton = menuBtn.GetComponent<Button>();
+
+            // ── Pause menu (Esc during a match) ──
+            GameObject pausePanel = Panel("PausePanel", canvasT, new Color(0f, 0f, 0f, 0.8f));
+            Stretch(Mk(pausePanel.transform));
+            pausePanel.SetActive(false);
+
+            var pauseTitle = Txt(pausePanel.transform, "PauseTitleText", "暂停", 40, TextAnchor.MiddleCenter, Color.white);
+            pauseTitle.fontStyle = FontStyle.Bold;
+            Anch(pauseTitle.rectTransform, 0f, 0.62f, 1f, 0.78f, 0f, 0f);
+
+            var resumeBtn = Btn(pausePanel.transform, "ResumeButton", "返回游戏");
+            Anch(resumeBtn.GetComponent<RectTransform>(), 0.35f, 0.44f, 0.65f, 0.52f, 0f, 0f);
+            var pSettingsBtn = Btn(pausePanel.transform, "PauseSettingsButton", "设  置");
+            Anch(pSettingsBtn.GetComponent<RectTransform>(), 0.35f, 0.34f, 0.65f, 0.42f, 0f, 0f);
+            var exitBtn = Btn(pausePanel.transform, "ExitToMenuButton", "退出到菜单");
+            Anch(exitBtn.GetComponent<RectTransform>(), 0.35f, 0.24f, 0.65f, 0.32f, 0f, 0f);
+            var pauseNotice = Txt(pausePanel.transform, "PauseNoticeText", "", 14, TextAnchor.MiddleCenter, new Color(1f, 0.85f, 0.2f));
+            Anch(pauseNotice.rectTransform, 0f, 0.14f, 1f, 0.20f, 0f, 0f);
+
+            menuUI.pausePanel = pausePanel;
+            menuUI.resumeButton = resumeBtn.GetComponent<Button>();
+            menuUI.pauseSettingsButton = pSettingsBtn.GetComponent<Button>();
+            menuUI.exitToMenuButton = exitBtn.GetComponent<Button>();
+            menuUI.pauseNoticeText = pauseNotice;
         }
 
         static Transform FindChild(Transform parent, string name)

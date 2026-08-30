@@ -75,6 +75,14 @@ namespace TotalDeck
         public event Action<GamePhase> OnPhaseChanged;
         public event Action OnEconomyChanged;
         public event Action<Team> OnGameEnded;
+        /// <summary>Raised whenever GameState changes (menu/playing/gameover).</summary>
+        public event Action<GameState> OnStateChanged;
+
+        void SetState(GameState state)
+        {
+            State = state;
+            OnStateChanged?.Invoke(state);
+        }
 
         // ── Economy getters for UI (player side) ───────────
         public int TotalIncome => GameConfig.BaseIncome + Player.PendingBounty;
@@ -173,7 +181,7 @@ namespace TotalDeck
             }
             cm?.NotifyHandChanged();
 
-            State = GameState.Playing;
+            SetState(GameState.Playing);
             Time.timeScale = 1f;
             OnPhaseChanged?.Invoke(CurrentPhase);
             OnEconomyChanged?.Invoke();
@@ -187,7 +195,7 @@ namespace TotalDeck
         {
             if (State != GameState.Playing) return;
             LastWinner = winner;
-            State = GameState.GameOver;
+            SetState(GameState.GameOver);
             Time.timeScale = 0f; // freeze battlefield; menus run on unscaled UI
             OnGameEnded?.Invoke(winner);
         }
@@ -198,7 +206,7 @@ namespace TotalDeck
         public void ReturnToMenu()
         {
             ClearField();
-            State = GameState.MainMenu;
+            SetState(GameState.MainMenu);
             Time.timeScale = 0f;
         }
 
