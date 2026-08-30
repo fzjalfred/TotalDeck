@@ -428,6 +428,10 @@ namespace TotalDeck
 
             if (AliveCount == 0)
             {
+                // Drop from selection immediately so the path line and
+                // highlight die with the regiment, not 2s later
+                RTSInputController.Instance?.SelectedRegiments.Remove(this);
+
                 // Delay destruction to let death effects play
                 Destroy(gameObject, 2f);
             }

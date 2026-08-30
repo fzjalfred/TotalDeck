@@ -35,6 +35,14 @@ namespace TotalDeck
         void Update()
         {
             if (regiment == null) return;
+            if (regiment.AliveCount == 0)
+            {
+                // Regiment wiped: kill path/marker visuals immediately
+                // (the root lingers ~2s for death effects before Destroy)
+                if (pathLine != null) pathLine.enabled = false;
+                if (moveTargetMarker != null) moveTargetMarker.SetActive(false);
+                return;
+            }
 
             bool selected = regiment.IsSelected();
             if (selected != wasSelected)

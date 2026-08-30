@@ -380,7 +380,7 @@ namespace TotalDeck
             // Swing when in range and off cooldown
             if (dist <= GameConfig.AttackRange && attackCooldown <= 0f)
             {
-                enemy.TakeDamage(attack);
+                enemy.TakeDamage(attack, this);
                 attackCooldown = Random.Range(GameConfig.AttackCooldownMin, GameConfig.AttackCooldownMax);
             }
         }
@@ -446,7 +446,7 @@ namespace TotalDeck
 
             if (attackCooldown > 0f) return true;
 
-            enemy.TakeDamage(attack);
+            enemy.TakeDamage(attack, this);
             attackCooldown = Random.Range(GameConfig.AttackCooldownMin, GameConfig.AttackCooldownMax);
             return true;
         }
@@ -454,13 +454,32 @@ namespace TotalDeck
         /// <summary>
         /// Take damage. If HP drops to 0, die (SetActive false, not Destroy).
         /// </summary>
-        public void TakeDamage(float damage)
+        public void TakeDamage(float damage, Soldier attacker = null)
         {
             hp -= damage;
             if (hp <= 0f)
             {
+                RecordKillCredit(attacker);
                 Die();
             }
+        }
+
+        /// <summary>
+        /// Credit the killing side and charge the victim's side.
+        /// </summary>
+        void RecordKillCredit(Soldier attacker)
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            if (attacker != null)
+            {
+                if (attacker.Team == Team.Player) gm.PlayerStats.AddKill();
+                else gm.EnemyStats.AddKill();
+            }
+
+            if (Team == Team.Player) gm.PlayerStats.AddLoss();
+            else gm.EnemyStats.AddLoss();
         }
 
         /// <summary>

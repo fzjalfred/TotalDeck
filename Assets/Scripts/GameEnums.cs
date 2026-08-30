@@ -12,6 +12,16 @@ namespace TotalDeck
     }
 
     /// <summary>
+    /// Top-level game flow state: main menu, in a match, or the results screen.
+    /// </summary>
+    public enum GameState
+    {
+        MainMenu,
+        Playing,
+        GameOver
+    }
+
+    /// <summary>
     /// Card types: Unit (deploy regiment) and Spell (instant effect on regiment).
     /// </summary>
     public enum CardType
@@ -48,6 +58,11 @@ namespace TotalDeck
         public const float AttackCooldownMax = 1.2f;
         public const float AttackRange = 2.2f;
         public const float EngageRadius = 6f;
+
+        // King of the Hill
+        public const float HillRadius = 16f;         // circle size at map center
+        public const float HillScoreInterval = 10f;  // settlement period
+        public const int HillScoreToWin = 100;       // victory threshold
 
         // Hard collision: any two soldiers (friend or foe) never overlap
         public const float SoldierDiameter = SoldierRadius * 2f;

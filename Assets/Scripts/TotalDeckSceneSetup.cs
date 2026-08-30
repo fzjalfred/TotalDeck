@@ -42,7 +42,7 @@ namespace TotalDeck.EditorTools
             GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
             ground.transform.position = Vector3.zero;
-            ground.transform.localScale = new Vector3(5f, 1f, 5f);
+            ground.transform.localScale = new Vector3(10f, 1f, 10f); // 100x100 units
             Renderer groundRenderer = ground.GetComponent<Renderer>();
             if (groundRenderer != null)
             {
@@ -56,9 +56,11 @@ namespace TotalDeck.EditorTools
             Camera cam = camObj.AddComponent<Camera>();
             camObj.tag = "MainCamera";
             CameraController camCtrl = camObj.AddComponent<CameraController>();
-            camCtrl.cameraHeight = 35f;
+            camCtrl.cameraHeight = 70f;
             camCtrl.cameraAngle = 55f;
             camCtrl.cameraCenter = Vector3.zero;
+            camCtrl.panLimitX = new Vector2(-40f, 40f);
+            camCtrl.panLimitZ = new Vector2(-40f, 40f);
 
             // ── Lighting ─────────────────────────────
             GameObject sun = new GameObject("Directional Light");
@@ -116,13 +118,19 @@ namespace TotalDeck.EditorTools
             // ── BattleInitializer ────────────────────
             GameObject battleInitObj = new GameObject("BattleInitializer");
             BattleInitializer battleInit = battleInitObj.AddComponent<BattleInitializer>();
-            battleInit.playerStartPos = new Vector3(0f, 0f, 15f);
-            battleInit.enemyStartPos = new Vector3(0f, 0f, -15f);
-            battleInit.enemySpawnPos = new Vector3(0f, 0f, -20f);
+            battleInit.playerStartPos = new Vector3(0f, 0f, 30f);
+            battleInit.enemyStartPos = new Vector3(0f, 0f, -30f);
+            battleInit.enemySpawnPos = new Vector3(0f, 0f, -40f);
 
             // ── BattlefieldZone ───────────────────────
             GameObject zoneObj = new GameObject("BattlefieldZone");
-            zoneObj.AddComponent<BattlefieldZone>();
+            var zone = zoneObj.AddComponent<BattlefieldZone>();
+            zone.zoneLineLength = 80f;
+
+            // ── HillZone (King of the Hill) ───────────
+            GameObject hillObj = new GameObject("HillZone");
+            HillZone hill = hillObj.AddComponent<HillZone>();
+            hill.CreateVisual();
 
             // ── UI Canvas ─────────────────────────────
             CreateUICanvas(gm, cm);
@@ -265,6 +273,79 @@ namespace TotalDeck.EditorTools
             GameObject skipBtn = CreateUIButton(topBar.transform, "SkipButton", "Engage!");
             SetAnchors(skipBtn.GetComponent<RectTransform>(), new Vector2(0.9f, 0.2f), new Vector2(1f, 0.8f), new Vector2(-20f, 0f));
 
+            // ── Hill Scoreboard (top center) ────────
+            // Format: 【01|023】【03|023】 player bracket left, enemy bracket right
+            GameObject scorePanel = new GameObject("HillScoreboard");
+            scorePanel.transform.SetParent(canvasObj.transform, false);
+            RectTransform scoreRT = scorePanel.AddComponent<RectTransform>();
+            scoreRT.anchorMin = new Vector2(0.5f, 1f);
+            scoreRT.anchorMax = new Vector2(0.5f, 1f);
+            scoreRT.pivot = new Vector2(0.5f, 1f);
+            scoreRT.anchoredPosition = new Vector2(0f, -62f);
+            scoreRT.sizeDelta = new Vector2(420f, 52f);
+            Image scoreBG = scorePanel.AddComponent<Image>();
+            scoreBG.color = new Color(0f, 0f, 0f, 0.55f);
+
+            HillScoreUI hillUI = scorePanel.AddComponent<HillScoreUI>();
+
+            // Left bracket: player score | player count
+            Text pScore = CreateUIText(scorePanel.transform, "PlayerScoreText", "00", 30, TextAnchor.MiddleRight);
+            pScore.color = new Color(0.3f, 0.67f, 0.97f);
+            SetAnchors(pScore.rectTransform, new Vector2(0.05f, 0.35f), new Vector2(0.30f, 1f), Vector2.zero);
+            Text pCount = CreateUIText(scorePanel.transform, "PlayerCountText", "000", 15, TextAnchor.MiddleRight);
+            pCount.color = new Color(0.3f, 0.67f, 0.97f, 0.75f);
+            SetAnchors(pCount.rectTransform, new Vector2(0.30f, 0.1f), new Vector2(0.46f, 0.55f), Vector2.zero);
+
+            Text sepL = CreateUIText(scorePanel.transform, "SepL", "|", 22, TextAnchor.MiddleCenter);
+            sepL.color = new Color(1f, 1f, 1f, 0.35f);
+            SetAnchors(sepL.rectTransform, new Vector2(0.46f, 0f), new Vector2(0.52f, 1f), Vector2.zero);
+
+            // Right bracket: enemy score | enemy count
+            Text eScore = CreateUIText(scorePanel.transform, "EnemyScoreText", "00", 30, TextAnchor.MiddleLeft);
+            eScore.color = new Color(1f, 0.42f, 0.42f);
+            SetAnchors(eScore.rectTransform, new Vector2(0.55f, 0.35f), new Vector2(0.80f, 1f), Vector2.zero);
+            Text eCount = CreateUIText(scorePanel.transform, "EnemyCountText", "000", 15, TextAnchor.MiddleLeft);
+            eCount.color = new Color(1f, 0.42f, 0.42f, 0.75f);
+            SetAnchors(eCount.rectTransform, new Vector2(0.80f, 0.1f), new Vector2(0.96f, 0.55f), Vector2.zero);
+
+            Text sepR = CreateUIText(scorePanel.transform, "SepR", "|", 22, TextAnchor.MiddleCenter);
+            sepR.color = new Color(1f, 1f, 1f, 0.35f);
+            SetAnchors(sepR.rectTransform, new Vector2(0.50f, 0f), new Vector2(0.56f, 1f), Vector2.zero);
+
+            hillUI.playerScoreText = pScore;
+            hillUI.playerCountText = pCount;
+            hillUI.enemyScoreText = eScore;
+            hillUI.enemyCountText = eCount;
+
+            // ── Scoring window progress bar (below scoreboard) ──
+            // Unelapsed = gray-white track; elapsed = faction color sweeping
+            // left -> right; hint text sits below the bar.
+            GameObject barBG = new GameObject("ScoreProgressBG");
+            barBG.transform.SetParent(scorePanel.transform, false);
+            Image bgImg = barBG.AddComponent<Image>();
+            bgImg.color = new Color(0.85f, 0.85f, 0.85f, 0.9f);
+            RectTransform barBGRT = barBG.GetComponent<RectTransform>();
+            barBGRT.anchorMin = new Vector2(0.05f, 0f);
+            barBGRT.anchorMax = new Vector2(0.95f, 0.38f);
+            barBGRT.anchoredPosition = Vector2.zero;
+            barBGRT.sizeDelta = Vector2.zero;
+
+            GameObject barFill = new GameObject("ScoreProgressFill");
+            barFill.transform.SetParent(barBG.transform, false);
+            Image fillImg = barFill.AddComponent<Image>();
+            fillImg.color = new Color(0.3f, 0.67f, 0.97f);
+            fillImg.type = Image.Type.Simple;
+            // Bar grows by stretching anchors (HillScoreUI sets anchorMax.x =
+            // progress). Filled-type rendering is unreliable on sprite-less
+            // images in Tuanjie — it renders full-width.
+            RectTransform barFillRT = barFill.GetComponent<RectTransform>();
+            barFillRT.anchorMin = Vector2.zero;
+            barFillRT.anchorMax = new Vector2(0f, 1f);
+            barFillRT.anchoredPosition = Vector2.zero;
+            barFillRT.sizeDelta = Vector2.zero;
+
+            hillUI.progressFill = fillImg;
+
             // ── Bottom Panel ──────────────────────
             GameObject bottomPanel = CreateUIPanel(canvasObj.transform, "BottomPanel", new Color(0.13f, 0.13f, 0.13f));
             RectTransform bottomRT = bottomPanel.GetComponent<RectTransform>();
@@ -339,6 +420,133 @@ namespace TotalDeck.EditorTools
             if (hintsBG == null) hintsBG = hintsObj.AddComponent<Image>();
             hintsBG.color = new Color(0f, 0f, 0f, 0.6f);
             hintsText.transform.SetAsLastSibling();
+
+            // ── Game Menu Framework (main menu + results screen) ──
+            CreateMenuFramework(canvasObj);
+        }
+
+        static void CreateMenuFramework(GameObject canvasObj)
+        {
+            GameObject menuUIObj = new GameObject("GameMenuUI");
+            menuUIObj.transform.SetParent(canvasObj.transform, false);
+            GameMenuUI menuUI = menuUIObj.AddComponent<GameMenuUI>();
+
+            // ── Main Menu Panel ───────────────────
+            GameObject mainPanel = CreateUIPanel(canvasObj.transform, "MainMenuPanel", new Color(0f, 0f, 0f, 0.75f));
+            RectTransform mainRT = mainPanel.GetComponent<RectTransform>();
+            mainRT.anchorMin = Vector2.zero;
+            mainRT.anchorMax = Vector2.one;
+            mainRT.anchoredPosition = Vector2.zero;
+            mainRT.sizeDelta = Vector2.zero;
+
+            Text title = CreateUIText(mainPanel.transform, "TitleText", "TOTAL DECK", 64, TextAnchor.MiddleCenter);
+            SetAnchors(title.rectTransform, new Vector2(0f, 0.75f), new Vector2(1f, 0.9f), Vector2.zero);
+            title.color = new Color(0f, 1f, 0.67f);
+            title.fontStyle = FontStyle.Bold;
+
+            Text subtitle = CreateUIText(mainPanel.transform, "SubtitleText", "占山为王 · 卡牌军团 RTS", 20, TextAnchor.MiddleCenter);
+            SetAnchors(subtitle.rectTransform, new Vector2(0f, 0.68f), new Vector2(1f, 0.75f), Vector2.zero);
+            subtitle.color = new Color(0.85f, 0.85f, 0.85f);
+
+            Button startBtn = CreateUIButton(mainPanel.transform, "StartButton", "开始游戏").GetComponent<Button>();
+            SetAnchors(startBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.52f), new Vector2(0.65f, 0.60f), Vector2.zero);
+
+            Button settingsBtn = CreateUIButton(mainPanel.transform, "SettingsButton", "设  置").GetComponent<Button>();
+            SetAnchors(settingsBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.42f), new Vector2(0.65f, 0.50f), Vector2.zero);
+
+            Button multiBtn = CreateUIButton(mainPanel.transform, "MultiplayerButton", "多人游戏").GetComponent<Button>();
+            SetAnchors(multiBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.32f), new Vector2(0.65f, 0.40f), Vector2.zero);
+
+            Button quitBtn = CreateUIButton(mainPanel.transform, "QuitButton", "退  出").GetComponent<Button>();
+            SetAnchors(quitBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.22f), new Vector2(0.65f, 0.30f), Vector2.zero);
+
+            Text notice = CreateUIText(mainPanel.transform, "MenuNoticeText", "", 14, TextAnchor.MiddleCenter);
+            SetAnchors(notice.rectTransform, new Vector2(0f, 0.14f), new Vector2(1f, 0.20f), Vector2.zero);
+            notice.color = new Color(1f, 0.85f, 0.2f);
+
+            menuUI.mainMenuPanel = mainPanel;
+            menuUI.startButton = startBtn;
+            menuUI.settingsButton = settingsBtn;
+            menuUI.multiplayerButton = multiBtn;
+            menuUI.quitButton = quitBtn;
+            menuUI.menuNoticeText = notice;
+
+            // ── Game Over Panel (results screen) ──
+            GameObject overPanel = CreateUIPanel(canvasObj.transform, "GameOverPanel", new Color(0f, 0f, 0f, 0.85f));
+            RectTransform overRT = overPanel.GetComponent<RectTransform>();
+            overRT.anchorMin = Vector2.zero;
+            overRT.anchorMax = Vector2.one;
+            overRT.anchoredPosition = Vector2.zero;
+            overRT.sizeDelta = Vector2.zero;
+            overPanel.SetActive(false);
+
+            Text winner = CreateUIText(overPanel.transform, "WinnerText", "VICTORY!", 56, TextAnchor.MiddleCenter);
+            SetAnchors(winner.rectTransform, new Vector2(0f, 0.72f), new Vector2(1f, 0.88f), Vector2.zero);
+            winner.fontStyle = FontStyle.Bold;
+
+            Text finalScore = CreateUIText(overPanel.transform, "FinalScoreText", "占领积分  0 : 0", 26, TextAnchor.MiddleCenter);
+            SetAnchors(finalScore.rectTransform, new Vector2(0f, 0.60f), new Vector2(1f, 0.70f), Vector2.zero);
+            finalScore.color = Color.white;
+
+            // Stats table header
+            Text header = CreateUIText(overPanel.transform, "StatsHeader", "        击杀    阵亡", 18, TextAnchor.MiddleCenter);
+            SetAnchors(header.rectTransform, new Vector2(0.15f, 0.50f), new Vector2(0.85f, 0.58f), Vector2.zero);
+            header.color = new Color(0.8f, 0.8f, 0.8f);
+
+            // Player stats row
+            GameObject pRow = CreateUIPanel(overPanel.transform, "PlayerStatsRow", new Color(0.3f, 0.67f, 0.97f, 0.15f));
+            RectTransform pRowRT = pRow.GetComponent<RectTransform>();
+            pRowRT.anchorMin = new Vector2(0.15f, 0.40f);
+            pRowRT.anchorMax = new Vector2(0.85f, 0.50f);
+            pRowRT.anchoredPosition = Vector2.zero;
+            pRowRT.sizeDelta = Vector2.zero;
+            Text pRowText = CreateUIText(pRow.transform, "PlayerStatsText", "玩家  0    0", 18, TextAnchor.MiddleCenter);
+            SetAnchors(pRowText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero);
+            pRowText.color = new Color(0.3f, 0.67f, 0.97f);
+
+            // Enemy stats row
+            GameObject eRow = CreateUIPanel(overPanel.transform, "EnemyStatsRow", new Color(1f, 0.42f, 0.42f, 0.15f));
+            RectTransform eRowRT = eRow.GetComponent<RectTransform>();
+            eRowRT.anchorMin = new Vector2(0.15f, 0.30f);
+            eRowRT.anchorMax = new Vector2(0.85f, 0.40f);
+            eRowRT.anchoredPosition = Vector2.zero;
+            eRowRT.sizeDelta = Vector2.zero;
+            Text eRowText = CreateUIText(eRow.transform, "EnemyStatsText", "敌方  0    0", 18, TextAnchor.MiddleCenter);
+            SetAnchors(eRowText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero);
+            eRowText.color = new Color(1f, 0.42f, 0.42f);
+
+            Button rematchBtn = CreateUIButton(overPanel.transform, "RematchButton", "再来一局").GetComponent<Button>();
+            SetAnchors(rematchBtn.GetComponent<RectTransform>(), new Vector2(0.28f, 0.14f), new Vector2(0.48f, 0.22f), Vector2.zero);
+
+            Button menuBtn = CreateUIButton(overPanel.transform, "BackToMenuButton", "返回主菜单").GetComponent<Button>();
+            SetAnchors(menuBtn.GetComponent<RectTransform>(), new Vector2(0.52f, 0.14f), new Vector2(0.72f, 0.22f), Vector2.zero);
+
+            menuUI.gameOverPanel = overPanel;
+            menuUI.winnerText = winner;
+            menuUI.finalScoreText = finalScore;
+            menuUI.playerStatsText = pRowText;
+            menuUI.enemyStatsText = eRowText;
+            menuUI.rematchButton = rematchBtn;
+            menuUI.backToMenuButton = menuBtn;
+
+            // ── HUD root grouping ─────────────────
+            // Group existing play HUD panels under a single hudRoot for state toggling
+            GameObject hudRoot = new GameObject("HUDRoot");
+            hudRoot.transform.SetParent(canvasObj.transform, false);
+            RectTransform hudRT = hudRoot.GetComponent<RectTransform>();
+            hudRT.anchorMin = Vector2.zero;
+            hudRT.anchorMax = Vector2.one;
+            hudRT.anchoredPosition = Vector2.zero;
+            hudRT.sizeDelta = Vector2.zero;
+
+            foreach (string hudName in new[] { "TopBar", "BottomPanel", "HillScoreboard", "Hints" })
+            {
+                Transform hud = canvasObj.transform.Find(hudName);
+                if (hud != null)
+                    hud.SetParent(hudRoot.transform, false);
+            }
+
+            menuUI.hudRoot = hudRoot;
         }
 
         static GameObject CreateCardUIPrefab()

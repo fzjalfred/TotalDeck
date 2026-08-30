@@ -31,9 +31,19 @@ namespace TotalDeck
         public float PhaseTimer { get; private set; }
         public int TurnCount { get; private set; } = 1;
 
+        /// <summary>Top-level game flow: menu, in-game, post-game screen.</summary>
+        public GameState State { get; private set; } = GameState.MainMenu;
+
         // ── Per-player state ───────────────────────────────
         public PlayerState Player { get; private set; }
         public PlayerState Enemy { get; private set; }
+
+        // ── Combat statistics ──────────────────────────────
+        public SideStats PlayerStats { get; private set; }
+        public SideStats EnemyStats { get; private set; }
+
+        /// <summary>Side that won the last game (valid in GameOver state).</summary>
+        public Team LastWinner { get; private set; }
 
         /// <summary>Human player's treasury (UI convenience).</summary>
         public int Treasury => Player.Treasury;
@@ -51,6 +61,7 @@ namespace TotalDeck
         // ── Events ─────────────────────────────────────────
         public event Action<GamePhase> OnPhaseChanged;
         public event Action OnEconomyChanged;
+        public event Action<Team> OnGameEnded;
 
         // ── Economy getters for UI (player side) ───────────
         public int TotalIncome => GameConfig.BaseIncome + Player.PendingBounty;
@@ -68,6 +79,9 @@ namespace TotalDeck
             PhaseTimer = GameConfig.PlanningTime;
             Player = new PlayerState(Team.Player, this);
             Enemy = new PlayerState(Team.Enemy, this);
+            PlayerStats = new SideStats(Team.Player);
+            EnemyStats = new SideStats(Team.Enemy);
+            Time.timeScale = 0f; // main menu shows first
         }
 
         void Start()
@@ -88,11 +102,109 @@ namespace TotalDeck
 
         void Update()
         {
+            if (State != GameState.Playing) return; // menu / game over: frozen
+
             PhaseTimer -= Time.deltaTime;
             if (PhaseTimer <= 0f)
             {
                 SwitchPhase();
             }
+        }
+
+        // ── Game Flow ──────────────────────────────────────
+
+        /// <summary>
+        /// Start a fresh game from the menu: reset economy, stats, scores,
+        /// clear the field and redeploy starting regiments.
+        /// </summary>
+        public void StartNewGame()
+        {
+            // Wipe any field units (fresh deployment)
+            ClearField();
+
+            // Reset per-player state
+            Player = new PlayerState(Team.Player, this);
+            Enemy = new PlayerState(Team.Enemy, this);
+            PlayerStats.Reset();
+            EnemyStats.Reset();
+
+            // Reset phases and scores
+            CurrentPhase = GamePhase.Planning;
+            PhaseTimer = GameConfig.PlanningTime;
+            TurnCount = 1;
+
+            if (HillZone.Instance != null)
+                HillZone.Instance.ResetScores();
+
+            // Redeploy opening regiments
+            DeployStartingRegiments();
+
+            // Refill starting hands
+            var cm = CardManager.Instance;
+            if (cm != null && cm.startingHand != null)
+            {
+                foreach (var card in cm.startingHand)
+                {
+                    if (card == null) continue;
+                    Player.Hand.Add(card.CreateRuntimeCopy());
+                    Enemy.Hand.Add(card.CreateRuntimeCopy());
+                }
+            }
+            cm?.NotifyHandChanged();
+
+            State = GameState.Playing;
+            Time.timeScale = 1f;
+            OnPhaseChanged?.Invoke(CurrentPhase);
+            OnEconomyChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Called by HillZone when a side reaches the winning score.
+        /// Freezes the battlefield and shows the results screen.
+        /// </summary>
+        public void EndGame(Team winner)
+        {
+            if (State != GameState.Playing) return;
+            LastWinner = winner;
+            State = GameState.GameOver;
+            Time.timeScale = 0f; // freeze battlefield; menus run on unscaled UI
+            OnGameEnded?.Invoke(winner);
+        }
+
+        /// <summary>
+        /// Leave the results screen for the main menu.
+        /// </summary>
+        public void ReturnToMenu()
+        {
+            ClearField();
+            State = GameState.MainMenu;
+            Time.timeScale = 0f;
+        }
+
+        void ClearField()
+        {
+            var all = new List<Regiment>(AllRegiments);
+            foreach (var reg in all)
+                if (reg != null)
+                    Destroy(reg.gameObject);
+            AllRegiments.Clear();
+
+            // Safety net: any soldier objects orphaned by deferred destroys
+            foreach (var s in FindObjectsOfType<Soldier>())
+                Destroy(s.gameObject);
+        }
+
+        /// <summary>
+        /// Deploy the opening player + enemy regiments at their spawn points.
+        /// </summary>
+        void DeployStartingRegiments()
+        {
+            Vector3 playerPos = new Vector3(0f, 0f, 30f);
+            Vector3 enemyPos = enemySpawnPoint != null
+                ? enemySpawnPoint.position
+                : new Vector3(0f, 0f, -30f);
+            SpawnRegiment(playerPos, Team.Player, 0);
+            SpawnRegiment(enemyPos, Team.Enemy, 0);
         }
 
         /// <summary>
