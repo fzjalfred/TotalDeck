@@ -291,26 +291,26 @@ namespace TotalDeck.EditorTools
             // Left bracket: player score | player count
             Text pScore = CreateUIText(scorePanel.transform, "PlayerScoreText", "00", 30, TextAnchor.MiddleRight);
             pScore.color = new Color(0.3f, 0.67f, 0.97f);
-            SetAnchors(pScore.rectTransform, new Vector2(0.05f, 0.35f), new Vector2(0.30f, 1f), Vector2.zero);
+            SetAnchors(pScore.rectTransform, new Vector2(0.05f, 0.42f), new Vector2(0.30f, 1f), Vector2.zero);
             Text pCount = CreateUIText(scorePanel.transform, "PlayerCountText", "000", 15, TextAnchor.MiddleRight);
             pCount.color = new Color(0.3f, 0.67f, 0.97f, 0.75f);
-            SetAnchors(pCount.rectTransform, new Vector2(0.30f, 0.1f), new Vector2(0.46f, 0.55f), Vector2.zero);
+            SetAnchors(pCount.rectTransform, new Vector2(0.30f, 0.30f), new Vector2(0.46f, 0.72f), Vector2.zero);
 
             Text sepL = CreateUIText(scorePanel.transform, "SepL", "|", 22, TextAnchor.MiddleCenter);
             sepL.color = new Color(1f, 1f, 1f, 0.35f);
-            SetAnchors(sepL.rectTransform, new Vector2(0.46f, 0f), new Vector2(0.52f, 1f), Vector2.zero);
+            SetAnchors(sepL.rectTransform, new Vector2(0.46f, 0.30f), new Vector2(0.52f, 1f), Vector2.zero);
 
             // Right bracket: enemy score | enemy count
             Text eScore = CreateUIText(scorePanel.transform, "EnemyScoreText", "00", 30, TextAnchor.MiddleLeft);
             eScore.color = new Color(1f, 0.42f, 0.42f);
-            SetAnchors(eScore.rectTransform, new Vector2(0.55f, 0.35f), new Vector2(0.80f, 1f), Vector2.zero);
+            SetAnchors(eScore.rectTransform, new Vector2(0.55f, 0.42f), new Vector2(0.80f, 1f), Vector2.zero);
             Text eCount = CreateUIText(scorePanel.transform, "EnemyCountText", "000", 15, TextAnchor.MiddleLeft);
             eCount.color = new Color(1f, 0.42f, 0.42f, 0.75f);
-            SetAnchors(eCount.rectTransform, new Vector2(0.80f, 0.1f), new Vector2(0.96f, 0.55f), Vector2.zero);
+            SetAnchors(eCount.rectTransform, new Vector2(0.80f, 0.30f), new Vector2(0.96f, 0.72f), Vector2.zero);
 
             Text sepR = CreateUIText(scorePanel.transform, "SepR", "|", 22, TextAnchor.MiddleCenter);
             sepR.color = new Color(1f, 1f, 1f, 0.35f);
-            SetAnchors(sepR.rectTransform, new Vector2(0.50f, 0f), new Vector2(0.56f, 1f), Vector2.zero);
+            SetAnchors(sepR.rectTransform, new Vector2(0.50f, 0.30f), new Vector2(0.56f, 1f), Vector2.zero);
 
             hillUI.playerScoreText = pScore;
             hillUI.playerCountText = pCount;
@@ -325,8 +325,8 @@ namespace TotalDeck.EditorTools
             Image bgImg = barBG.AddComponent<Image>();
             bgImg.color = new Color(0.85f, 0.85f, 0.85f, 0.9f);
             RectTransform barBGRT = barBG.GetComponent<RectTransform>();
-            barBGRT.anchorMin = new Vector2(0.05f, 0f);
-            barBGRT.anchorMax = new Vector2(0.95f, 0.38f);
+            barBGRT.anchorMin = new Vector2(0.05f, 0.02f);
+            barBGRT.anchorMax = new Vector2(0.95f, 0.26f);
             barBGRT.anchoredPosition = Vector2.zero;
             barBGRT.sizeDelta = Vector2.zero;
 
@@ -393,7 +393,7 @@ namespace TotalDeck.EditorTools
             gameUI.bottomPanel = bottomPanel;
 
             // ── Hints panel ────────────────────────
-            GameObject hintsObj = new GameObject("Hints");
+            GameObject hintsObj = new GameObject("Hints", typeof(RectTransform));
             hintsObj.transform.SetParent(canvasObj.transform, false);
             // Match the hint text's anchored region; a default rect would
             // leave a 100x100 square at canvas center
@@ -427,7 +427,7 @@ namespace TotalDeck.EditorTools
 
         static void CreateMenuFramework(GameObject canvasObj)
         {
-            GameObject menuUIObj = new GameObject("GameMenuUI");
+            GameObject menuUIObj = new GameObject("GameMenuUI", typeof(RectTransform));
             menuUIObj.transform.SetParent(canvasObj.transform, false);
             GameMenuUI menuUI = menuUIObj.AddComponent<GameMenuUI>();
 
@@ -448,24 +448,48 @@ namespace TotalDeck.EditorTools
             SetAnchors(subtitle.rectTransform, new Vector2(0f, 0.68f), new Vector2(1f, 0.75f), Vector2.zero);
             subtitle.color = new Color(0.85f, 0.85f, 0.85f);
 
+            // ── Map selection row ──
+            Text mapLabel = CreateUIText(mainPanel.transform, "MapLabel", "地图", 16, TextAnchor.MiddleRight);
+            SetAnchors(mapLabel.rectTransform, new Vector2(0.22f, 0.625f), new Vector2(0.34f, 0.665f), Vector2.zero);
+            mapLabel.color = Color.white;
+            Dropdown mapDropdown = CreateUIDropdown(mainPanel.transform, "MapDropdown");
+            SetAnchors(mapDropdown.GetComponent<RectTransform>(), new Vector2(0.36f, 0.615f), new Vector2(0.64f, 0.675f), Vector2.zero);
+
+            // ── Player spawn row ──
+            Text pLabel = CreateUIText(mainPanel.transform, "PlayerSlotLabel", "玩家出生点", 16, TextAnchor.MiddleRight);
+            SetAnchors(pLabel.rectTransform, new Vector2(0.22f, 0.565f), new Vector2(0.34f, 0.605f), Vector2.zero);
+            pLabel.color = new Color(0.3f, 0.67f, 0.97f);
+            Dropdown playerSlot = CreateUIDropdown(mainPanel.transform, "PlayerSlotDropdown");
+            SetAnchors(playerSlot.GetComponent<RectTransform>(), new Vector2(0.36f, 0.555f), new Vector2(0.64f, 0.615f), Vector2.zero);
+
+            // ── Enemy spawn row ──
+            Text eLabel = CreateUIText(mainPanel.transform, "EnemySlotLabel", "AI出生点", 16, TextAnchor.MiddleRight);
+            SetAnchors(eLabel.rectTransform, new Vector2(0.22f, 0.505f), new Vector2(0.34f, 0.545f), Vector2.zero);
+            eLabel.color = new Color(1f, 0.42f, 0.42f);
+            Dropdown enemySlot = CreateUIDropdown(mainPanel.transform, "EnemySlotDropdown");
+            SetAnchors(enemySlot.GetComponent<RectTransform>(), new Vector2(0.36f, 0.495f), new Vector2(0.64f, 0.555f), Vector2.zero);
+
             Button startBtn = CreateUIButton(mainPanel.transform, "StartButton", "开始游戏").GetComponent<Button>();
-            SetAnchors(startBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.52f), new Vector2(0.65f, 0.60f), Vector2.zero);
+            SetAnchors(startBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.40f), new Vector2(0.65f, 0.47f), Vector2.zero);
 
             Button settingsBtn = CreateUIButton(mainPanel.transform, "SettingsButton", "设  置").GetComponent<Button>();
-            SetAnchors(settingsBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.42f), new Vector2(0.65f, 0.50f), Vector2.zero);
+            SetAnchors(settingsBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.31f), new Vector2(0.65f, 0.38f), Vector2.zero);
 
             Button multiBtn = CreateUIButton(mainPanel.transform, "MultiplayerButton", "多人游戏").GetComponent<Button>();
-            SetAnchors(multiBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.32f), new Vector2(0.65f, 0.40f), Vector2.zero);
+            SetAnchors(multiBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.22f), new Vector2(0.65f, 0.29f), Vector2.zero);
 
             Button quitBtn = CreateUIButton(mainPanel.transform, "QuitButton", "退  出").GetComponent<Button>();
-            SetAnchors(quitBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.22f), new Vector2(0.65f, 0.30f), Vector2.zero);
+            SetAnchors(quitBtn.GetComponent<RectTransform>(), new Vector2(0.35f, 0.13f), new Vector2(0.65f, 0.20f), Vector2.zero);
 
             Text notice = CreateUIText(mainPanel.transform, "MenuNoticeText", "", 14, TextAnchor.MiddleCenter);
-            SetAnchors(notice.rectTransform, new Vector2(0f, 0.14f), new Vector2(1f, 0.20f), Vector2.zero);
+            SetAnchors(notice.rectTransform, new Vector2(0f, 0.05f), new Vector2(1f, 0.11f), Vector2.zero);
             notice.color = new Color(1f, 0.85f, 0.2f);
 
             menuUI.mainMenuPanel = mainPanel;
             menuUI.startButton = startBtn;
+            menuUI.mapDropdown = mapDropdown;
+            menuUI.playerSlotDropdown = playerSlot;
+            menuUI.enemySlotDropdown = enemySlot;
             menuUI.settingsButton = settingsBtn;
             menuUI.multiplayerButton = multiBtn;
             menuUI.quitButton = quitBtn;
@@ -531,7 +555,7 @@ namespace TotalDeck.EditorTools
 
             // ── HUD root grouping ─────────────────
             // Group existing play HUD panels under a single hudRoot for state toggling
-            GameObject hudRoot = new GameObject("HUDRoot");
+            GameObject hudRoot = new GameObject("HUDRoot", typeof(RectTransform));
             hudRoot.transform.SetParent(canvasObj.transform, false);
             RectTransform hudRT = hudRoot.GetComponent<RectTransform>();
             hudRT.anchorMin = Vector2.zero;
@@ -671,6 +695,126 @@ namespace TotalDeck.EditorTools
             rt.anchorMax = max;
             rt.anchoredPosition = offset;
             rt.sizeDelta = Vector2.zero;
+        }
+
+        /// <summary>
+        /// Build a functional uGUI Dropdown (template + label + scroll list)
+        /// entirely from code — Tuanjie has no built-in dropdown asset.
+        /// </summary>
+        static Dropdown CreateUIDropdown(Transform parent, string name)
+        {
+            // Root
+            GameObject root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            RectTransform rootRT = root.AddComponent<RectTransform>();
+            Image rootImg = root.AddComponent<Image>();
+            rootImg.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+            Dropdown dropdown = root.AddComponent<Dropdown>();
+
+            // Label (shows current selection)
+            GameObject label = new GameObject("Label");
+            label.transform.SetParent(root.transform, false);
+            RectTransform labelRT = label.AddComponent<RectTransform>();
+            labelRT.anchorMin = Vector2.zero;
+            labelRT.anchorMax = Vector2.one;
+            labelRT.offsetMin = new Vector2(10f, 0f);
+            labelRT.offsetMax = new Vector2(-25f, 0f);
+            Text labelText = label.AddComponent<Text>();
+            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            labelText.fontSize = 16;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.color = Color.white;
+            dropdown.captionText = labelText;
+
+            // Arrow
+            GameObject arrow = new GameObject("Arrow");
+            arrow.transform.SetParent(root.transform, false);
+            RectTransform arrowRT = arrow.AddComponent<RectTransform>();
+            arrowRT.anchorMin = new Vector2(1f, 0f);
+            arrowRT.anchorMax = new Vector2(1f, 1f);
+            arrowRT.offsetMin = new Vector2(-20f, 0f);
+            arrowRT.offsetMax = new Vector2(-5f, 0f);
+            Text arrowText = arrow.AddComponent<Text>();
+            arrowText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            arrowText.text = "▼";
+            arrowText.fontSize = 12;
+            arrowText.alignment = TextAnchor.MiddleCenter;
+            arrowText.color = Color.white;
+
+            // Template (popup list) — inactive until opened
+            GameObject template = new GameObject("Template");
+            template.transform.SetParent(root.transform, false);
+            RectTransform tmplRT = template.AddComponent<RectTransform>();
+            tmplRT.anchorMin = new Vector2(0f, 0f);
+            tmplRT.anchorMax = new Vector2(1f, 0f);
+            tmplRT.pivot = new Vector2(0.5f, 1f);
+            tmplRT.anchoredPosition = Vector2.zero;
+            tmplRT.sizeDelta = new Vector2(0f, 150f);
+            Image tmplImg = template.AddComponent<Image>();
+            tmplImg.color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
+            template.AddComponent<ScrollRect>();
+            template.SetActive(false);
+            dropdown.template = tmplRT;
+
+            // Viewport inside template
+            GameObject viewport = new GameObject("Viewport");
+            viewport.transform.SetParent(template.transform, false);
+            RectTransform vpRT = viewport.AddComponent<RectTransform>();
+            vpRT.anchorMin = Vector2.zero;
+            vpRT.anchorMax = Vector2.one;
+            vpRT.anchoredPosition = Vector2.zero;
+            vpRT.sizeDelta = Vector2.zero;
+            vpImgStandalone(viewport);
+            viewport.AddComponent<RectMask2D>();
+
+            // Content (driven by layout)
+            GameObject content = new GameObject("Content");
+            content.transform.SetParent(viewport.transform, false);
+            RectTransform contentRT = content.AddComponent<RectTransform>();
+            contentRT.anchorMin = new Vector2(0f, 1f);
+            contentRT.anchorMax = Vector2.one;
+            contentRT.pivot = new Vector2(0.5f, 1f);
+            contentRT.anchoredPosition = Vector2.zero;
+            contentRT.sizeDelta = Vector2.zero;
+
+            // Item prototype
+            GameObject item = new GameObject("Item");
+            item.transform.SetParent(content.transform, false);
+            RectTransform itemRT = item.AddComponent<RectTransform>();
+            itemRT.anchorMin = new Vector2(0f, 0.5f);
+            itemRT.anchorMax = new Vector2(1f, 0.5f);
+            itemRT.sizeDelta = new Vector2(0f, 28f);
+            Toggle itemToggle = item.AddComponent<Toggle>();
+            itemToggle.targetGraphic = item.AddComponent<Image>();
+            itemToggle.image.color = new Color(0.3f, 0.3f, 0.3f);
+
+            GameObject itemLabel = new GameObject("ItemLabel");
+            itemLabel.transform.SetParent(item.transform, false);
+            RectTransform ilRT = itemLabel.AddComponent<RectTransform>();
+            ilRT.anchorMin = Vector2.zero;
+            ilRT.anchorMax = Vector2.one;
+            ilRT.offsetMin = new Vector2(10f, 0f);
+            ilRT.offsetMax = new Vector2(-10f, 0f);
+            Text itemText = itemLabel.AddComponent<Text>();
+            itemText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            itemText.fontSize = 16;
+            itemText.alignment = TextAnchor.MiddleLeft;
+            itemText.color = Color.white;
+            dropdown.itemText = itemText;
+
+            ScrollRect sr = template.GetComponent<ScrollRect>();
+            sr.content = contentRT;
+            sr.viewport = vpRT;
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+
+            return dropdown;
+        }
+
+        static void vpImgStandalone(GameObject viewport)
+        {
+            var img = viewport.AddComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0.3f);
         }
     }
 }

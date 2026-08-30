@@ -131,21 +131,35 @@ namespace TotalDeck
 
         Vector3 PickDeployPosition()
         {
-            // Deploy as close to the hill as the own half allows — the AI
-            // should contest the objective, not camp its spawn
-            var hill = HillZone.Instance;
+            // Deploy on the AI's own half of the map, as close to the hill
+            // as allowed — derived from the AI's assigned spawn slot direction
             var gm = GameManager.Instance;
+            var hill = HillZone.Instance;
 
-            float zEdge;
-            if (hill != null)
-                zEdge = -Mathf.Max(6f, hill.radius + 2f); // just outside hill, own side
-            else
-                zEdge = -10f;
+            Vector3 spawnPos = gm.SpawnPosOf(Team.Enemy);
+            Vector3 hillCenter = hill != null ? hill.center : CurrentHillCenter();
 
-            if (gm.enemySpawnPoint != null && gm.enemySpawnPoint.position.z > zEdge)
-                zEdge = gm.enemySpawnPoint.position.z;
+            // Direction from hill toward the AI's spawn = "own half" side
+            Vector3 dir = spawnPos - hillCenter;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.001f) dir = new Vector3(0f, 0f, -1f);
+            dir.Normalize();
 
-            return new Vector3(Random.Range(-6f, 6f), 0f, zEdge + Random.Range(0f, 2f));
+            // Stand between the hill edge and the spawn
+            float hillEdge = hill != null ? hill.radius + 2f : 10f;
+            float spawnDist = dir.magnitude > 0.001f ? Vector3.Distance(hillCenter, spawnPos) : 20f;
+            float dist = Mathf.Clamp(hillEdge, 4f, spawnDist);
+
+            // Spread laterally across the spawn direction
+            Vector3 lateral = new Vector3(-dir.z, 0f, dir.x);
+            Vector3 pos = hillCenter + dir * dist + lateral * Random.Range(-6f, 6f);
+            return pos;
+        }
+
+        Vector3 CurrentHillCenter()
+        {
+            var map = GameManager.Instance.CurrentMap;
+            return map != null ? map.hillCenter : Vector3.zero;
         }
 
         // ── Combat: contest the hill ──────────────────────

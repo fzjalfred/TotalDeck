@@ -140,11 +140,31 @@ namespace TotalDeck
         // ── Visualization ─────────────────────────────────
 
         /// <summary>
+        /// Rebuild ring + disc visuals at the current center/radius
+        /// (called when a map is applied).
+        /// </summary>
+        public void RebuildVisual()
+        {
+            // Clear old visuals
+            var stale = new System.Collections.Generic.List<GameObject>();
+            foreach (Transform child in transform)
+                stale.Add(child.gameObject);
+            foreach (var go in stale)
+            {
+                if (Application.isPlaying) Destroy(go);
+                else DestroyImmediate(go);
+            }
+            CreateVisual();
+        }
+
+        /// <summary>
         /// Build the ring visual at runtime: a flat circle of line segments
-        /// plus a translucent disc on the ground.
+        /// plus a translucent disc on the ground, centered on the hill.
         /// </summary>
         public void CreateVisual()
         {
+            transform.position = center;
+
             // Ring outline
             GameObject ring = new GameObject("HillRing");
             ring.transform.SetParent(transform, false);

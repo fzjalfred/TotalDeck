@@ -45,6 +45,19 @@ namespace TotalDeck
         /// <summary>Side that won the last game (valid in GameOver state).</summary>
         public Team LastWinner { get; private set; }
 
+        // ── Map & spawn assignment ─────────────────────────
+        public MapDef CurrentMap { get; private set; }
+        public SpawnAssignment PlayerAssign { get; private set; }
+        public SpawnAssignment EnemyAssign { get; private set; }
+
+        /// <summary>Map slot index a given team spawns at.</summary>
+        public int SlotOf(Team team) =>
+            team == Team.Player ? PlayerAssign.slotIndex : EnemyAssign.slotIndex;
+
+        /// <summary>World position of a team's assigned spawn slot.</summary>
+        public Vector3 SpawnPosOf(Team team) =>
+            CurrentMap.spawnPoints[SlotOf(team)];
+
         /// <summary>Human player's treasury (UI convenience).</summary>
         public int Treasury => Player.Treasury;
         /// <summary>Human player's current draw cost (UI convenience).</summary>
@@ -116,9 +129,17 @@ namespace TotalDeck
         /// <summary>
         /// Start a fresh game from the menu: reset economy, stats, scores,
         /// clear the field and redeploy starting regiments.
+        /// Uses the current map + spawn assignment.
         /// </summary>
-        public void StartNewGame()
+        public void StartNewGame(MapDef map, SpawnAssignment playerAssign, SpawnAssignment enemyAssign)
         {
+            CurrentMap = map ?? MapDef.Duel();
+            PlayerAssign = playerAssign ?? new SpawnAssignment(Team.Player, 0);
+            EnemyAssign = enemyAssign ?? new SpawnAssignment(Team.Enemy, 1);
+
+            // Apply map geometry to live objects
+            ApplyMapGeometry();
+
             // Wipe any field units (fresh deployment)
             ClearField();
 
@@ -195,16 +216,47 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Deploy the opening player + enemy regiments at their spawn points.
+        /// Deploy the opening player + enemy regiments at their assigned
+        /// map slots.
         /// </summary>
         void DeployStartingRegiments()
         {
-            Vector3 playerPos = new Vector3(0f, 0f, 30f);
-            Vector3 enemyPos = enemySpawnPoint != null
-                ? enemySpawnPoint.position
-                : new Vector3(0f, 0f, -30f);
-            SpawnRegiment(playerPos, Team.Player, 0);
-            SpawnRegiment(enemyPos, Team.Enemy, 0);
+            SpawnRegiment(SpawnPosOf(Team.Player), Team.Player, 0);
+            SpawnRegiment(SpawnPosOf(Team.Enemy), Team.Enemy, 0);
+        }
+
+        /// <summary>
+        /// Push the selected map's geometry into the live scene objects:
+        /// ground size, hill position/radius, zone divider length, camera.
+        /// </summary>
+        void ApplyMapGeometry()
+        {
+            var map = CurrentMap;
+            if (map == null) return;
+
+            var ground = GameObject.Find("Ground");
+            if (ground != null)
+                ground.transform.localScale = new Vector3(map.groundSize / 10f, 1f, map.groundSize / 10f);
+
+            if (HillZone.Instance != null)
+            {
+                HillZone.Instance.center = map.hillCenter;
+                HillZone.Instance.radius = map.hillRadius;
+                HillZone.Instance.RebuildVisual();
+            }
+
+            var zone = FindObjectOfType<BattlefieldZone>();
+            if (zone != null)
+                zone.zoneLineLength = map.groundSize * 0.8f;
+
+            var camCtrl = FindObjectOfType<CameraController>();
+            if (camCtrl != null)
+            {
+                camCtrl.cameraCenter = map.hillCenter;
+                camCtrl.cameraHeight = map.groundSize * 0.7f;
+                camCtrl.panLimitX = new Vector2(-map.groundSize / 2f, map.groundSize / 2f);
+                camCtrl.panLimitZ = new Vector2(-map.groundSize / 2f, map.groundSize / 2f);
+            }
         }
 
         /// <summary>
@@ -311,12 +363,17 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Check if a position is in the given team's deployment half.
-        /// Player deploys at +Z; the enemy mirrors at -Z.
+        /// Check if a position is within deploy range of a team's spawn slot
+        /// (same half of the map as that team's slot).
         /// </summary>
         public bool IsInDeployZone(Vector3 worldPos, Team team)
         {
-            return team == Team.Player ? worldPos.z > 0f : worldPos.z < 0f;
+            if (CurrentMap == null) return team == Team.Player ? worldPos.z > 0f : worldPos.z < 0f;
+            Vector3 spawn = SpawnPosOf(team);
+            // Same half as the spawn: dot with spawn direction from the hill
+            Vector3 spawnDir = spawn - CurrentMap.hillCenter;
+            Vector3 posDir = worldPos - CurrentMap.hillCenter;
+            return Vector3.Dot(spawnDir, posDir) > 0f;
         }
     }
 }
