@@ -444,7 +444,7 @@ namespace TotalDeck.EditorTools
             var trt = Mk(tmplGo.transform);
             trt.anchorMin = new Vector2(0f, 0f); trt.anchorMax = new Vector2(1f, 0f);
             trt.pivot = new Vector2(0.5f, 1f);
-            trt.anchoredPosition = Vector2.zero; trt.sizeDelta = new Vector2(0f, 150f);
+            trt.anchoredPosition = Vector2.zero; trt.sizeDelta = new Vector2(0f, 340f);
             var timg = tmplGo.AddComponent<Image>();
             timg.color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
             var sr = tmplGo.AddComponent<ScrollRect>();
@@ -470,7 +470,7 @@ namespace TotalDeck.EditorTools
             GameObject itemGo = MkRect("Item", contentGo.transform);
             var irt = Mk(itemGo.transform);
             irt.anchorMin = new Vector2(0f, 0.5f); irt.anchorMax = new Vector2(1f, 0.5f);
-            irt.sizeDelta = new Vector2(0f, 28f);
+            irt.sizeDelta = new Vector2(0f, 36f);
             var toggle = itemGo.AddComponent<Toggle>();
             var iimg = itemGo.AddComponent<Image>();
             iimg.color = new Color(0.3f, 0.3f, 0.3f);
