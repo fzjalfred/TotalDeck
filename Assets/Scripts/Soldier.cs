@@ -188,11 +188,10 @@ namespace TotalDeck
             }
             else
             {
-                engagedEnemy = null;
-                if (hasFormationTarget)
-                {
-                    MoveTowardFormation();
-                }
+                // Planning phase: the battlefield is paused — soldiers hold
+                // their exact positions from the combat scramble instead of
+                // walking back into formation. Movement resumes next Combat.
+                SetEngaged(null);
             }
         }
 

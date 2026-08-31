@@ -173,6 +173,8 @@ namespace TotalDeck
             {
                 HandleCombatMovement();
             }
+            // Planning phase: battlefield paused — freeze the anchor so
+            // soldiers keep their combat positions instead of re-forming
 
             UpdateSoldierPositions();
         }
