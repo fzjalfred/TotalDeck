@@ -710,6 +710,7 @@ namespace TotalDeck.EditorTools
             Image rootImg = root.AddComponent<Image>();
             rootImg.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
             Dropdown dropdown = root.AddComponent<Dropdown>();
+            root.AddComponent<DropdownPopupSizer>();
 
             // Label (shows current selection)
             GameObject label = new GameObject("Label");

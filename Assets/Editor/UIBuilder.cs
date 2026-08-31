@@ -18,21 +18,31 @@ namespace TotalDeck.EditorTools
         [MenuItem("Tools/TotalDeck/Rebuild UI", false, 10)]
         public static void Rebuild()
         {
-            // ── 1. Purge ALL existing UICanvas objects (idempotence) ──
-            foreach (var oldCanvas in Object.FindObjectsOfType<Canvas>(true))
+            if (EditorApplication.isPlaying)
             {
-                if (oldCanvas.name != "UICanvas") continue;
-                string path = GetPath(oldCanvas.transform);
-                DestroyTree(oldCanvas.gameObject);
-                Debug.Log($"[UIBuilder] destroyed old canvas at {path}");
+                Debug.LogError("[UIBuilder] Refusing to run in play mode — stop play first");
+                return;
             }
 
             var gm = Object.FindObjectOfType<GameManager>();
             var cm = Object.FindObjectOfType<CardManager>();
             if (gm == null || cm == null)
             {
-                Debug.LogError("[UIBuilder] GameManager/CardManager missing — aborting");
+                Debug.LogError("[UIBuilder] GameManager/CardManager missing — aborting BEFORE destroying existing UI");
                 return;
+            }
+
+            // ── 1. Purge ALL existing UICanvas objects (idempotence) ──
+            // Nested child Canvases (e.g. on Dropdowns) die with the root and
+            // leave destroyed entries in the FindObjectsOfType array — skip
+            // them via the Unity null check.
+            foreach (var oldCanvas in Object.FindObjectsOfType<Canvas>(true))
+            {
+                if (oldCanvas == null) continue;
+                if (oldCanvas.name != "UICanvas") continue;
+                string path = GetPath(oldCanvas.transform);
+                DestroyTree(oldCanvas.gameObject);
+                Debug.Log($"[UIBuilder] destroyed old canvas at {path}");
             }
 
             // ── 2. Build the single authoritative canvas ──
@@ -422,6 +432,7 @@ namespace TotalDeck.EditorTools
             var img = go.AddComponent<Image>();
             img.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
             var dd = go.AddComponent<Dropdown>();
+            go.AddComponent<DropdownPopupSizer>();
 
             GameObject labelGo = MkRect("Label", go.transform);
             var lRT = Mk(labelGo.transform);
