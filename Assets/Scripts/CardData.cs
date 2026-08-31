@@ -21,7 +21,7 @@ namespace TotalDeck
         public CardType cardType = CardType.Unit;
 
         [Header("Unit Card")]
-        [Tooltip("Index into GameManager's regiment prefab array. 0 = Infantry, 1 = Heavy Elite.")]
+        [Tooltip("Index into GameManager's regiment prefab array. 0 = Infantry.")]
         public int prefabIndex = 0;
 
         [Header("Spell Card")]

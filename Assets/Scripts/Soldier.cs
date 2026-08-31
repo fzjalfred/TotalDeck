@@ -134,7 +134,7 @@ namespace TotalDeck
 
                 // Drop cached enemy if it died
                 if (engagedEnemy != null && !engagedEnemy.gameObject.activeSelf)
-                    engagedEnemy = null;
+                    SetEngaged(null);
 
                 // Auto-engage behavior:
                 // - Attack order: charge any foe within engage radius (front rank
@@ -144,13 +144,17 @@ namespace TotalDeck
                 bool chase = ParentRegiment.IsAttacking || !ParentRegiment.IsMoving;
                 if (engagedEnemy == null && chase)
                 {
-                    engagedEnemy = FindNearestEnemy(GameConfig.EngageRadius);
-                    chaseTimer = ChaseGiveUpTime;
+                    Soldier found = FindNearestEnemy(GameConfig.EngageRadius);
+                    if (found != null)
+                    {
+                        SetEngaged(found);
+                        chaseTimer = ChaseGiveUpTime;
+                    }
                 }
                 else if (engagedEnemy != null && ParentRegiment.IsAttacking == false && ParentRegiment.IsMoving)
                 {
                     // A move order arrived mid-fight: drop the chase, keep swinging
-                    engagedEnemy = null;
+                    SetEngaged(null);
                 }
 
                 if (engagedEnemy != null)
@@ -162,7 +166,7 @@ namespace TotalDeck
                         chaseTimer -= Time.deltaTime;
                         if (chaseTimer <= 0f || !IsInCombatWith(engagedEnemy))
                         {
-                            engagedEnemy = null;
+                            SetEngaged(null);
                         }
                     }
 
@@ -299,9 +303,10 @@ namespace TotalDeck
 
         /// <summary>
         /// Nearest enemy soldier within radius, EXCLUDING enemies already
-        /// locked by a friendly chaser. Prevents whole ranks piling onto one
-        /// foe (overkill waste) while others stand free — evens out DPS
-        /// distribution between the two lines.
+        /// locked by THIS regiment's chasers. The lock registry lives on our
+        /// own regiment — scanning the enemy's regiment would never find
+        /// anything (foes only lock us, never each other), which used to
+        /// funnel every back-rank soldier onto the same front-rank target.
         /// Colliders live on the child "Model" object, so resolve the Soldier
         /// via GetComponentInParent.
         /// </summary>
@@ -317,7 +322,7 @@ namespace TotalDeck
                 if (enemy == null) continue;
                 if (enemy.Team == Team) continue;
                 if (!enemy.gameObject.activeSelf) continue;
-                if (enemy.IsTargeted) continue; // already engaged by a friend
+                if (ParentRegiment != null && ParentRegiment.IsEnemyLocked(enemy)) continue; // fight slot taken
 
                 float sqr = (enemy.transform.position - transform.position).sqrMagnitude;
                 if (sqr < minSqr)
@@ -389,31 +394,28 @@ namespace TotalDeck
         {
             // Clear chase state; the soldier keeps fighting on the move,
             // so extraction costs hits but never becomes a punching bag
-            engagedEnemy = null;
+            SetEngaged(null);
         }
 
         public bool IsFighting => engagedEnemy != null;
 
-        /// <summary>
-        /// True when at least one enemy chaser has locked THIS soldier.
-        /// Scans own regiment's attackers only (small set) — no global registry.
-        /// </summary>
-        public bool IsTargeted
-        {
-            get
-            {
-                if (ParentRegiment == null) return false;
-                foreach (var s in ParentRegiment.Soldiers)
-                {
-                    if (s == null || !s.gameObject.activeSelf) continue;
-                    if (s.engagedEnemyTarget == this) return true;
-                }
-                return false;
-            }
-        }
+        /// <summary>The enemy soldier this unit is currently melee-locked with, if any.</summary>
+        public Soldier CurrentTarget => engagedEnemy;
 
-        /// <summary>Internal: the soldier this unit has locked (for IsTargeted).</summary>
-        public Soldier engagedEnemyTarget => engagedEnemy;
+        /// <summary>
+        /// Single entry point for changing the melee lock. Keeps the parent
+        /// regiment's fight-slot registry in sync so comrades spread out
+        /// across the enemy line instead of piling onto one foe.
+        /// </summary>
+        void SetEngaged(Soldier enemy)
+        {
+            if (engagedEnemy == enemy) return;
+            if (engagedEnemy != null)
+                ParentRegiment?.NotifyUnlock(engagedEnemy);
+            engagedEnemy = enemy;
+            if (engagedEnemy != null)
+                ParentRegiment?.NotifyLock(engagedEnemy);
+        }
 
         /// <summary>
         /// True while the chase target is within a generous pursuit envelope —
@@ -488,6 +490,9 @@ namespace TotalDeck
         public void Die()
         {
             if (!gameObject.activeSelf) return;
+            // Release any fight-slot lock we held — dead soldiers stop
+            // ticking Update, so the registry entry would never clear
+            SetEngaged(null);
             gameObject.SetActive(false);
             ParentRegiment?.OnSoldierDied(this);
         }

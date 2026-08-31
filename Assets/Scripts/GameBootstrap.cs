@@ -32,10 +32,8 @@ namespace TotalDeck
 
             if (regimentPrefabs == null || regimentPrefabs.Length == 0)
             {
-                regimentPrefabs = new GameObject[2];
+                regimentPrefabs = new GameObject[1];
                 regimentPrefabs[0] = RegimentPrefabFactory.CreateRegimentPrefab();
-                regimentPrefabs[1] = RegimentPrefabFactory.CreateRegimentPrefab();
-                regimentPrefabs[1].name = "HeavyElitePrefab";
             }
         }
     }

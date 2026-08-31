@@ -303,7 +303,6 @@ MonoBehaviour:
   soldierPrefab: {fileID: 1032663434792194647, guid: 7792a62a79238fd4ca25a4fce1d35760, type: 3}
   regimentPrefabs:
   - {fileID: 3002587716215422501, guid: 2fc4a142f81dbf945b82966a44ea55e2, type: 3}
-  - {fileID: 656346453349374485, guid: bfc8f7b287bf77748b1f893f2afce7ad, type: 3}
 --- !u!4 &220751
 Transform:
   m_ObjectHideFlags: 0
@@ -3172,14 +3171,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   regimentPrefabs:
   - {fileID: 3002587716215422501, guid: 2fc4a142f81dbf945b82966a44ea55e2, type: 3}
-  - {fileID: 656346453349374485, guid: bfc8f7b287bf77748b1f893f2afce7ad, type: 3}
   soldierPrefab: {fileID: 1032663434792194647, guid: 7792a62a79238fd4ca25a4fce1d35760, type: 3}
   playerDeployZone: {fileID: 0}
   enemySpawnPoint: {fileID: 0}
   cardPool:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
-  - {fileID: 11400000, guid: f25f88e16fd116342bb539458ec8c7e5, type: 2}
 --- !u!4 &367092457
 Transform:
   m_ObjectHideFlags: 0
@@ -8397,7 +8394,7 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 56
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -10682,7 +10679,6 @@ MonoBehaviour:
   cardPool:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
-  - {fileID: 11400000, guid: f25f88e16fd116342bb539458ec8c7e5, type: 2}
   startingHand:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
@@ -11591,7 +11587,7 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 64
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1

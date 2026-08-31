@@ -82,16 +82,15 @@ namespace TotalDeck.EditorTools
             // Create prefabs via factory at runtime, but also create visible soldier prefab
             GameObject soldierPrefab = CreateSoldierPrefabAsset();
             GameObject infantryPrefab = CreateRegimentPrefabAsset("InfantryPrefab");
-            GameObject heavyPrefab = CreateRegimentPrefabAsset("HeavyElitePrefab");
 
             bootstrap.soldierPrefab = soldierPrefab;
-            bootstrap.regimentPrefabs = new GameObject[] { infantryPrefab, heavyPrefab };
+            bootstrap.regimentPrefabs = new GameObject[] { infantryPrefab };
 
             // ── GameManager ───────────────────────────
             GameObject gmObj = new GameObject("GameManager");
             GameManager gm = gmObj.AddComponent<GameManager>();
             gm.soldierPrefab = soldierPrefab;
-            gm.regimentPrefabs = new GameObject[] { infantryPrefab, heavyPrefab };
+            gm.regimentPrefabs = new GameObject[] { infantryPrefab };
 
             // ── AIController ─────────────────────────
             GameObject aiObj = new GameObject("AIController");
@@ -104,9 +103,8 @@ namespace TotalDeck.EditorTools
             // Create card assets
             CardData infantryCard = CreateCardAsset("InfantryCard", 1, "Infantry", "Deploy a 50-man infantry regiment", 60, CardType.Unit, 0);
             CardData healCard = CreateCardAsset("HealCard", 2, "Field Medic", "Heal a friendly regiment (+15 soldiers)", 40, CardType.Spell, 0, healAmount: 15);
-            CardData heavyCard = CreateCardAsset("HeavyEliteCard", 3, "Heavy Elite", "Deploy a powerful heavy elite regiment", 120, CardType.Unit, 1);
 
-            cm.cardPool = new CardData[] { infantryCard, healCard, heavyCard };
+            cm.cardPool = new CardData[] { infantryCard, healCard };
             cm.startingHand = new CardData[] { infantryCard, healCard };
             gm.cardPool = cm.cardPool;
 

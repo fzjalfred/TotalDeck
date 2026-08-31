@@ -116,7 +116,6 @@ If auto-setup didn't trigger:
 |---------------|-------|-------|-------------------------------------|
 | Infantry      | Unit  | $60   | Deploy 50-man infantry regiment     |
 | Field Medic   | Spell | $40   | Heal +15 soldiers to a regiment     |
-| Heavy Elite   | Unit  | $120  | Deploy powerful regiment (same upkeep) |
 
 ## Technical Details
 

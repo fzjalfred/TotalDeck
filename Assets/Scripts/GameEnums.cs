@@ -45,7 +45,7 @@ namespace TotalDeck
     public static class GameConfig
     {
         public const float PlanningTime = 20f;
-        public const float CombatTime = 60f;
+        public const float CombatTime = 20f;
         public const int RegimentSize = 50;
         public const int RegimentCols = 10;
         public const float SoldierSpacing = 1.2f;

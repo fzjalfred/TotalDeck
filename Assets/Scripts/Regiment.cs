@@ -27,6 +27,16 @@ namespace TotalDeck
         private GameManager gameManager;
         private bool initialized = false;
 
+        // Fight-slot registry: enemies currently melee-locked by THIS
+        // regiment's soldiers. Per-regiment set (allies may overlap targets,
+        // which is rare and acceptable) — lets FindNearestEnemy spread
+        // attackers across the enemy line instead of piling onto one foe.
+        readonly HashSet<Soldier> lockedEnemies = new HashSet<Soldier>();
+
+        public bool IsEnemyLocked(Soldier enemy) => enemy != null && lockedEnemies.Contains(enemy);
+        public void NotifyLock(Soldier enemy) { if (enemy != null) lockedEnemies.Add(enemy); }
+        public void NotifyUnlock(Soldier enemy) { if (enemy != null) lockedEnemies.Remove(enemy); }
+
         // Buff multipliers
         private float attackBuffMul = 1f;
         private float speedBuffMul = 1f;
@@ -183,16 +193,20 @@ namespace TotalDeck
                 }
             }
 
-            // Hold the line while any soldier is melee-locked — UNLESS this is
-            // an attack order: then the whole regiment keeps pressing forward
-            // so back ranks flood into the fight instead of standing idle
-            bool holdAnchor = IsEngaged && !IsAttacking;
-            if (holdAnchor) return;
+            // TW counter-press: a unit locked in melee shuffles toward whoever
+            // is pressing it, so back ranks step up into the fight instead of
+            // standing at frozen slots
+            if (IsEngaged && !IsAttacking)
+            {
+                Regiment presser = FindPressingRegiment();
+                if (presser != null) targetPosition = presser.transform.position;
+            }
 
-            // Attack order with engaged soldiers: stop so the FRONT LINE
-            // (the anchor) reaches contact distance of the enemy — the
-            // formation body trails behind and never walks through the foe
-            float stopDist = IsAttacking ? GameConfig.AttackRange : 1.5f;
+            // Attack order: drive the anchor all the way in (stopDist 0) so
+            // the formation floods into the enemy blob TW-style — back ranks
+            // walk their advancing slots into engage range and the two units
+            // merge into one grinding melee
+            float stopDist = IsAttacking ? 0f : 1.5f;
 
             Vector3 toTarget = targetPosition - transform.position;
             toTarget.y = 0f;
@@ -219,6 +233,23 @@ namespace TotalDeck
                 if (step > dist) step = dist;
                 transform.position += toTarget.normalized * step;
             }
+        }
+
+        /// <summary>
+        /// The regiment currently pressing us: the parent of the first
+        /// enemy our fighting soldiers have locked. Cheap scan — only runs
+        /// while IsEngaged.
+        /// </summary>
+        Regiment FindPressingRegiment()
+        {
+            foreach (var s in Soldiers)
+            {
+                if (s == null || !s.gameObject.activeSelf) continue;
+                var foe = s.CurrentTarget;
+                if (foe == null || !foe.gameObject.activeSelf) continue;
+                return foe.ParentRegiment;
+            }
+            return null;
         }
 
         /// <summary>
