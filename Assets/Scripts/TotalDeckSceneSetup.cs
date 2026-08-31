@@ -100,12 +100,16 @@ namespace TotalDeck.EditorTools
             GameObject cmObj = new GameObject("CardManager");
             CardManager cm = cmObj.AddComponent<CardManager>();
 
-            // Create card assets
-            CardData infantryCard = CreateCardAsset("InfantryCard", 1, "Infantry", "Deploy a 50-man infantry regiment", 60, CardType.Unit, 0);
-            CardData healCard = CreateCardAsset("HealCard", 2, "Field Medic", "Heal a friendly regiment (+15 soldiers)", 40, CardType.Spell, 0, healAmount: 15);
+            // Create card assets (definitions live in Assets/Cards/CardLibrary.cs)
+            CardData footmanCard = CreateCardAsset("FootmanCard", 1, "Footman", "Deploy a 50-man footman regiment", 60, CardType.Unit, 0);
+            CardData archerCard = CreateCardAsset("ArcherCard", 2, "Archer", "Ranged troop", 90, CardType.Unit, 0);
+            CardData knightCard = CreateCardAsset("KnightCard", 3, "Knight", "Melee cavalry troop", 100, CardType.Unit, 0);
+            CardData healCard = CreateCardAsset("HealCard", 4, "Heal", "Restore +15 soldiers to the most wounded friendly regiment", 40, CardType.Spell, 0, healAmount: 15);
+            CardData infernoCard = CreateCardAsset("InfernoCard", 5, "Inferno", "Area damage spell", 80, CardType.Spell, 0);
+            CardData frostCard = CreateCardAsset("FrostCard", 6, "Frost", "Slow / freeze debuff spell", 60, CardType.Spell, 0);
 
-            cm.cardPool = new CardData[] { infantryCard, healCard };
-            cm.startingHand = new CardData[] { infantryCard, healCard };
+            cm.cardPool = new CardData[] { footmanCard, archerCard, knightCard, healCard, infernoCard, frostCard };
+            cm.startingHand = new CardData[] { footmanCard, healCard };
             gm.cardPool = cm.cardPool;
 
             // ── RTSInputController ───────────────────
@@ -197,12 +201,12 @@ namespace TotalDeck.EditorTools
 
         static CardData CreateCardAsset(string fileName, int id, string name, string desc, int cost, CardType type, int prefabIdx, int healAmount = 0)
         {
-            string path = "Assets/ScriptableObjects/" + fileName + ".asset";
+            string path = "Assets/Cards/" + fileName + ".asset";
             CardData existing = AssetDatabase.LoadAssetAtPath<CardData>(path);
             if (existing != null) return existing;
 
-            if (!AssetDatabase.IsValidFolder("Assets/ScriptableObjects"))
-                AssetDatabase.CreateFolder("Assets", "ScriptableObjects");
+            if (!AssetDatabase.IsValidFolder("Assets/Cards"))
+                AssetDatabase.CreateFolder("Assets", "Cards");
 
             CardData card = ScriptableObject.CreateInstance<CardData>();
             card.cardID = id;
