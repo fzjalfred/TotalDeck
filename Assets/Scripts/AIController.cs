@@ -54,43 +54,31 @@ namespace TotalDeck
             if (gm.TurnCount != lastTurnSeen)
                 lastTurnSeen = gm.TurnCount;
 
-            // Budget policy: keep some reserve for draws before deploying.
-            // Draw while it's cheap relative to what we hold.
+            // Play priority: Troop > Spell (Mage) > Draw.
+            // Exhaust units first, then spells, and only draw when nothing
+            // playable remains — keeps the board flooded with regiments.
             bool acted = true;
             int safety = 20; // hard cap against infinite loops
             while (acted && safety-- > 0)
             {
                 acted = false;
 
-                // 1) Draw if we can still afford the next draw AND have
-                //    fewer than a full hand
-                if (ai.Hand.Count < 6 && ai.Treasury >= ai.CurrentDrawCost)
-                {
-                    if (ai.DrawCard())
-                    {
-                        acted = true;
-                        continue;
-                    }
-                }
-
-                // 2) Heal/buff own most valuable regiment if worthwhile
-                if (TryCastSpell(ai))
-                {
-                    acted = true;
-                    continue;
-                }
-
-                // 3) Deploy the strongest affordable unit — but keep a small
-                //    reserve if we can still draw a cheaper card next tick
+                // 1) Troop: deploy the strongest affordable unit
                 if (TryDeployBestUnit(ai))
                 {
                     acted = true;
                     continue;
                 }
 
-                // 4) Nothing affordable: if we have treasury left, one more
-                //    draw attempt (cost resets next turn anyway)
-                if (ai.Treasury >= ai.CurrentDrawCost && ai.Hand.Count < 10)
+                // 2) Spell (Mage): heal/buff own most valuable regiment
+                if (TryCastSpell(ai))
+                {
+                    acted = true;
+                    continue;
+                }
+
+                // 3) Draw: only when nothing playable is left in hand
+                if (ai.Hand.Count < 10 && ai.Treasury >= ai.CurrentDrawCost)
                 {
                     if (ai.DrawCard())
                     {

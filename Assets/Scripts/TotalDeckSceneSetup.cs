@@ -96,6 +96,10 @@ namespace TotalDeck.EditorTools
             GameObject aiObj = new GameObject("AIController");
             aiObj.AddComponent<AIController>();
 
+            // ── DebugPanel (F1 toggle) ───────────────
+            GameObject debugObj = new GameObject("DebugPanel");
+            debugObj.AddComponent<DebugPanel>();
+
             // ── CardManager ──────────────────────────
             GameObject cmObj = new GameObject("CardManager");
             CardManager cm = cmObj.AddComponent<CardManager>();

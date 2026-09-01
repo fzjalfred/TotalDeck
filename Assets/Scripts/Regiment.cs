@@ -27,16 +27,6 @@ namespace TotalDeck
         private GameManager gameManager;
         private bool initialized = false;
 
-        // Fight-slot registry: enemies currently melee-locked by THIS
-        // regiment's soldiers. Per-regiment set (allies may overlap targets,
-        // which is rare and acceptable) — lets FindNearestEnemy spread
-        // attackers across the enemy line instead of piling onto one foe.
-        readonly HashSet<Soldier> lockedEnemies = new HashSet<Soldier>();
-
-        public bool IsEnemyLocked(Soldier enemy) => enemy != null && lockedEnemies.Contains(enemy);
-        public void NotifyLock(Soldier enemy) { if (enemy != null) lockedEnemies.Add(enemy); }
-        public void NotifyUnlock(Soldier enemy) { if (enemy != null) lockedEnemies.Remove(enemy); }
-
         // Buff multipliers
         private float attackBuffMul = 1f;
         private float speedBuffMul = 1f;
@@ -239,17 +229,22 @@ namespace TotalDeck
 
         /// <summary>
         /// The regiment currently pressing us: the parent of the first
-        /// enemy our fighting soldiers have locked. Cheap scan — only runs
-        /// while IsEngaged.
+        /// enemy our fighting soldiers are in contact with. Cheap scan —
+        /// only runs while IsEngaged.
         /// </summary>
         Regiment FindPressingRegiment()
         {
             foreach (var s in Soldiers)
             {
                 if (s == null || !s.gameObject.activeSelf) continue;
-                var foe = s.CurrentTarget;
-                if (foe == null || !foe.gameObject.activeSelf) continue;
-                return foe.ParentRegiment;
+                if (!s.IsFighting) continue;
+                // The pressing regiment is the one whose soldiers we overlap
+                foreach (var reg in GameManager.Instance.AllRegiments)
+                {
+                    if (reg == null || reg.Team == Team) continue;
+                    if (Vector3.Distance(reg.transform.position, transform.position) < 15f)
+                        return reg;
+                }
             }
             return null;
         }

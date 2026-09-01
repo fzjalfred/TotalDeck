@@ -301,11 +301,8 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Nearest enemy soldier within radius, EXCLUDING enemies already
-        /// locked by THIS regiment's chasers. The lock registry lives on our
-        /// own regiment — scanning the enemy's regiment would never find
-        /// anything (foes only lock us, never each other), which used to
-        /// funnel every back-rank soldier onto the same front-rank target.
+        /// Nearest enemy soldier within radius. Simple proximity targeting —
+        /// no fight-slot dedup; soldiers independently pick the closest foe.
         /// Colliders live on the child "Model" object, so resolve the Soldier
         /// via GetComponentInParent.
         /// </summary>
@@ -321,33 +318,12 @@ namespace TotalDeck
                 if (enemy == null) continue;
                 if (enemy.Team == Team) continue;
                 if (!enemy.gameObject.activeSelf) continue;
-                if (ParentRegiment != null && ParentRegiment.IsEnemyLocked(enemy)) continue; // fight slot taken
 
                 float sqr = (enemy.transform.position - transform.position).sqrMagnitude;
                 if (sqr < minSqr)
                 {
                     minSqr = sqr;
                     closest = enemy;
-                }
-            }
-
-            // Everyone already paired: fall back to plain nearest (overkill
-            // is better than standing idle)
-            if (closest == null)
-            {
-                minSqr = float.MaxValue;
-                for (int i = 0; i < hitCount; i++)
-                {
-                    Soldier enemy = overlapBuffer[i].GetComponentInParent<Soldier>();
-                    if (enemy == null) continue;
-                    if (enemy.Team == Team) continue;
-                    if (!enemy.gameObject.activeSelf) continue;
-                    float sqr = (enemy.transform.position - transform.position).sqrMagnitude;
-                    if (sqr < minSqr)
-                    {
-                        minSqr = sqr;
-                        closest = enemy;
-                    }
                 }
             }
             return closest;
@@ -398,23 +374,8 @@ namespace TotalDeck
 
         public bool IsFighting => engagedEnemy != null;
 
-        /// <summary>The enemy soldier this unit is currently melee-locked with, if any.</summary>
-        public Soldier CurrentTarget => engagedEnemy;
-
-        /// <summary>
-        /// Single entry point for changing the melee lock. Keeps the parent
-        /// regiment's fight-slot registry in sync so comrades spread out
-        /// across the enemy line instead of piling onto one foe.
-        /// </summary>
-        void SetEngaged(Soldier enemy)
-        {
-            if (engagedEnemy == enemy) return;
-            if (engagedEnemy != null)
-                ParentRegiment?.NotifyUnlock(engagedEnemy);
-            engagedEnemy = enemy;
-            if (engagedEnemy != null)
-                ParentRegiment?.NotifyLock(engagedEnemy);
-        }
+        /// <summary>Assign the current melee target (plain auto-targeting, no registry).</summary>
+        void SetEngaged(Soldier enemy) { engagedEnemy = enemy; }
 
         /// <summary>
         /// True while the chase target is within a generous pursuit envelope —
