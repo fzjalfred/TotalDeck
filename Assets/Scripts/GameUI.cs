@@ -17,9 +17,8 @@ namespace TotalDeck
 
         [Header("Economy")]
         public Text treasuryText;
-        public Text incomeText;
-        public Text upkeepText;
         public Text balanceText;
+        public Text balanceDetailText; // hover detail panel (income/upkeep/bounty)
 
         [Header("Draw Card")]
         public Button drawButton;
@@ -137,25 +136,19 @@ namespace TotalDeck
             if (treasuryText != null)
                 treasuryText.text = "$" + gm.Treasury;
 
-            if (incomeText != null)
-                incomeText.text = "$" + gm.TotalIncome;
-
-            if (upkeepText != null)
-                upkeepText.text = gm.TotalUpkeep.ToString();
-
             if (balanceText != null)
             {
                 int net = gm.NetBalance;
-                if (net >= 0)
-                {
-                    balanceText.text = "Balance: +$" + net;
-                    balanceText.color = positiveColor;
-                }
-                else
-                {
-                    balanceText.text = "Deficit: -$" + Mathf.Abs(net);
-                    balanceText.color = negativeColor;
-                }
+                balanceText.text = "Balance: " + (net >= 0 ? "+$" : "-$") + Mathf.Abs(net);
+                balanceText.color = net >= 0 ? positiveColor : negativeColor;
+            }
+
+            if (balanceDetailText != null)
+            {
+                balanceDetailText.text =
+                    $"+${GameConfig.BaseIncome} income\n" +
+                    $"+${gm.Player.PendingBounty} bounty\n" +
+                    $"-${gm.TotalUpkeep} upkeep";
             }
 
             // Draw button

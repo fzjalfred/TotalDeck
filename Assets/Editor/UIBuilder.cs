@@ -95,12 +95,23 @@ namespace TotalDeck.EditorTools
             Anch(timerText.rectTransform, 0.30f, 0f, 0.45f, 1f, 0f, 0f);
             var treasuryText = Txt(topBar.transform, "TreasuryText", "$250", 22, TextAnchor.MiddleCenter, new Color(0f, 1f, 0.67f));
             Anch(treasuryText.rectTransform, 0.40f, 0f, 0.60f, 1f, 0f, 10f);
-            var incomeText = Txt(topBar.transform, "IncomeText", "$100", 12, TextAnchor.MiddleCenter, new Color(0.87f, 0.87f, 0.87f));
-            Anch(incomeText.rectTransform, 0.40f, 0f, 0.60f, 0.4f, 0f, -5f);
-            var upkeepText = Txt(topBar.transform, "UpkeepText", "0", 12, TextAnchor.MiddleCenter, new Color(1f, 0.42f, 0.42f));
-            Anch(upkeepText.rectTransform, 0.50f, 0f, 0.60f, 0.4f, 0f, -5f);
-            var balanceText = Txt(topBar.transform, "BalanceText", "Balance: +$100", 13, TextAnchor.MiddleCenter, new Color(0f, 1f, 0.67f));
-            Anch(balanceText.rectTransform, 0.40f, 0f, 0.70f, 0.4f, -30f, -5f);
+            var balanceText = Txt(topBar.transform, "BalanceText", "Balance: +$100", 14, TextAnchor.MiddleCenter, new Color(0f, 1f, 0.67f));
+            Anch(balanceText.rectTransform, 0.40f, 0f, 0.60f, 0.42f, 0f, -3f);
+            // Hover detail panel: docked immediately RIGHT of Treasury, no
+            // background — text floats beside the numbers
+            GameObject balanceDetail = MkRect("BalanceDetail", topBar.transform);
+            var bdRT = Mk(balanceDetail.transform);
+            bdRT.anchorMin = new Vector2(0.60f, 0.5f); bdRT.anchorMax = new Vector2(0.60f, 0.5f);
+            bdRT.pivot = new Vector2(0f, 0.5f);
+            bdRT.anchoredPosition = new Vector2(-20f, 0f);
+            bdRT.sizeDelta = new Vector2(180f, 64f);
+            var bdText = Txt(balanceDetail.transform, "Text", "+$100 income\n-$15 upkeep\n+$0 bounty", 12, TextAnchor.MiddleLeft, new Color(0.87f, 0.87f, 0.87f));
+            Stretch(Mk(bdText.rectTransform));
+            balanceDetail.SetActive(false);
+            var hoverBalance = balanceText.gameObject.AddComponent<BalanceHoverReveal>();
+            hoverBalance.detailPanel = balanceDetail;
+            var hoverTreasury = treasuryText.gameObject.AddComponent<BalanceHoverReveal>();
+            hoverTreasury.detailPanel = balanceDetail;
             var skipBtn = Btn(topBar.transform, "SkipButton", "Engage!");
             Anch(skipBtn.GetComponent<RectTransform>(), 0.90f, 0.2f, 1.0f, 0.8f, -20f, 0f);
 
@@ -196,9 +207,8 @@ namespace TotalDeck.EditorTools
             gameUI.phaseText = phaseText;
             gameUI.timerText = timerText;
             gameUI.treasuryText = treasuryText;
-            gameUI.incomeText = incomeText;
-            gameUI.upkeepText = upkeepText;
             gameUI.balanceText = balanceText;
+            gameUI.balanceDetailText = balanceDetail.transform.Find("Text").GetComponent<Text>();
             gameUI.drawButton = drawBtn.GetComponent<Button>();
             gameUI.drawCostText = drawCostText;
             gameUI.skipButton = skipBtn.GetComponent<Button>();

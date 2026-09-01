@@ -62,7 +62,7 @@ namespace TotalDeck
         // King of the Hill
         public const float HillRadius = 16f;         // circle size at map center
         public const float HillScoreInterval = 10f;  // settlement period
-        public const int HillScoreToWin = 100;       // victory threshold
+        public const int HillScoreToWin = 20;       // victory threshold
 
         // Hard collision: any two soldiers (friend or foe) never overlap
         public const float SoldierDiameter = SoldierRadius * 2f;
