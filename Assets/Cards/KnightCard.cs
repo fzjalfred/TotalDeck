@@ -3,11 +3,16 @@ using UnityEngine;
 namespace TotalDeck.Cards
 {
     /// <summary>
-    /// Placeholder — melee cavalry troop. Not implemented yet.
+    /// Placeholder — melee cavalry troop. Unplayable until implemented.
     /// TODO: charge behaviour and stat overrides.
     /// </summary>
-    public class KnightCard : MonoBehaviour
+    public class KnightCard : ICardEffect
     {
-        // Placeholder card - TODO: implement
+        public bool CanPlay(CardData card, PlayerState caster, Vector3 position, Regiment clickedTarget) => false;
+
+        public void Execute(CardData card, PlayerState caster, Vector3 position, Regiment clickedTarget)
+        {
+            // Placeholder card - TODO: implement
+        }
     }
 }

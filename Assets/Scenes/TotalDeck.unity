@@ -2708,7 +2708,7 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 56
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -3595,7 +3595,11 @@ MonoBehaviour:
   enemySpawnPoint: {fileID: 0}
   cardPool:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
+  - {fileID: 11400000, guid: 58e68c5de655fe84da69d81dd3e103c2, type: 2}
+  - {fileID: 11400000, guid: 1d74dae5ba87ec74dbc269c252e1e9f2, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
+  - {fileID: 11400000, guid: 1e5afb05b8509be428f323c0e9efab5a, type: 2}
+  - {fileID: 11400000, guid: 15f45cc7aba63a849a0d3a31c2d3d1aa, type: 2}
 --- !u!4 &367092457
 Transform:
   m_ObjectHideFlags: 0
@@ -11017,7 +11021,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cardPool:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
+  - {fileID: 11400000, guid: 58e68c5de655fe84da69d81dd3e103c2, type: 2}
+  - {fileID: 11400000, guid: 1d74dae5ba87ec74dbc269c252e1e9f2, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
+  - {fileID: 11400000, guid: 1e5afb05b8509be428f323c0e9efab5a, type: 2}
+  - {fileID: 11400000, guid: 15f45cc7aba63a849a0d3a31c2d3d1aa, type: 2}
   startingHand:
   - {fileID: 11400000, guid: e0a5db79df44422438ec9204a5c58b5c, type: 2}
   - {fileID: 11400000, guid: 61ead9deba323cc479c7de634ac52910, type: 2}
@@ -12251,7 +12259,7 @@ MonoBehaviour:
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 10
-    m_MaxSize: 40
+    m_MaxSize: 64
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1

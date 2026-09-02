@@ -81,6 +81,8 @@ namespace TotalDeck
         /// <summary>
         /// Play the currently selected card at the given world position.
         /// Called by RTSInputController when clicking on the battlefield.
+        /// Only gathers the player's CLICK context (deploy zone / clicked
+        /// regiment) — resolution itself is type-blind via PlayerState.PlayCard.
         /// </summary>
         public bool PlayCardAt(Vector3 worldPos)
         {
@@ -89,38 +91,25 @@ namespace TotalDeck
 
             var player = GameManager.Instance.Player;
 
+            // Player input context: units need a deploy-zone position, spells
+            // need a clicked friendly regiment. Clicking empty ground casts nothing.
+            Regiment clicked = null;
             if (SelectedCard.cardType == CardType.Unit)
             {
                 if (!GameManager.Instance.IsInDeployZone(worldPos, Team.Player))
                     return false;
-                if (!player.PlayUnitCard(SelectedCard, worldPos))
-                    return false;
             }
             else if (SelectedCard.cardType == CardType.Spell)
             {
-                // For the player, spells need a clicked target like before
-                Regiment target = FindRegimentAt(worldPos, Team.Player);
-                if (target == null) return false;
-                if (!SpendAndCast(player, SelectedCard, target))
-                    return false;
+                clicked = FindRegimentAt(worldPos, Team.Player);
+                if (clicked == null) return false;
             }
+
+            if (!player.PlayCard(SelectedCard, worldPos, clicked))
+                return false;
 
             SelectedCard = null;
             OnHandChanged?.Invoke();
-            return true;
-        }
-
-        bool SpendAndCast(PlayerState player, CardData spell, Regiment target)
-        {
-            if (!player.CanAfford(spell.playCost)) return false;
-            player.Spend(spell.playCost);
-
-            if (spell.healAmount > 0) target.ModifySoldiers(spell.healAmount);
-            if (spell.damageAmount > 0) target.DamageAllSoldiers(spell.damageAmount);
-            if (spell.attackBuff != 0f || spell.hpBuff != 0f || spell.speedBuff != 0f)
-                target.ApplyBuff(spell.attackBuff, spell.hpBuff, spell.speedBuff);
-
-            player.Hand.Remove(spell);
             return true;
         }
 

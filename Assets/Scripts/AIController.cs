@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TotalDeck
@@ -95,26 +96,28 @@ namespace TotalDeck
             {
                 var card = ai.Hand[i];
                 if (card.cardType != CardType.Spell) continue;
-                if (!ai.CanAfford(card.playCost)) continue;
-                if (ai.PlaySpellCard(card)) return true;
+                if (ai.PlayCard(card, Vector3.zero)) return true;
             }
             return false;
         }
 
         bool TryDeployBestUnit(PlayerState ai)
         {
-            // Prefer the most expensive affordable unit (value per slot)
-            CardData best = null;
+            // Most expensive affordable units first (value per slot). Placeholder
+            // cards refuse to resolve — fall through to the next candidate so
+            // the AI never stalls on an unimplemented card.
+            var candidates = new List<CardData>();
             foreach (var card in ai.Hand)
             {
                 if (card.cardType != CardType.Unit) continue;
                 if (!ai.CanAfford(card.playCost)) continue;
-                if (best == null || card.playCost > best.playCost)
-                    best = card;
+                candidates.Add(card);
             }
+            candidates.Sort((a, b) => b.playCost.CompareTo(a.playCost));
 
-            if (best == null) return false;
-            return ai.PlayUnitCard(best, PickDeployPosition());
+            foreach (var card in candidates)
+                if (ai.PlayCard(card, PickDeployPosition())) return true;
+            return false;
         }
 
         Vector3 PickDeployPosition()

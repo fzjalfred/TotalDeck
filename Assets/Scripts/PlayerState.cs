@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using TotalDeck.Cards;
 
 namespace TotalDeck
 {
@@ -92,71 +93,33 @@ namespace TotalDeck
         }
 
         /// <summary>
-        /// Deploy a unit card at a position. Player path goes through
-        /// CardManager for UI sync; AI calls this directly.
+        /// Strategy-pattern entry point for playing any card. The engine never
+        /// knows WHICH card it is settling — it resolves the card's effect
+        /// (CardEffectResolver), lets it gate legality (CanPlay), pays, then
+        /// applies it (Execute). Deploy-zone and click-target context come
+        /// from the caller (CardManager for the human, AIController for AI).
         /// </summary>
-        public bool PlayUnitCard(CardData card, Vector3 position)
+        public bool PlayCard(CardData card, Vector3 position, Regiment clickedTarget = null)
         {
-            if (card == null || card.cardType != CardType.Unit) return false;
+            if (card == null) return false;
             if (gm.CurrentPhase != GamePhase.Planning) return false;
-            if (!Spend(card.playCost)) return false;
+            if (!CanAfford(card.playCost)) return false;
 
-            gm.SpawnRegiment(position, Team, card.prefabIndex);
+            var effect = CardEffectResolver.Resolve(card);
+            if (effect == null || !effect.CanPlay(card, this, position, clickedTarget))
+                return false;
+
+            if (!Spend(card.playCost)) return false;
+            effect.Execute(card, this, position, clickedTarget);
             Hand.Remove(card);
             return true;
         }
 
-        /// <summary>
-        /// Cast a spell card on the best valid target (own side).
-        /// </summary>
-        public bool PlaySpellCard(CardData card)
-        {
-            if (card == null || card.cardType != CardType.Spell) return false;
-            if (gm.CurrentPhase != GamePhase.Planning) return false;
+        /// <summary>Spawn a regiment for the card currently being resolved (unit cards).</summary>
+        public Regiment DeployRegiment(Vector3 position, int prefabIndex)
+            => gm.SpawnRegiment(position, Team, prefabIndex);
 
-            Regiment target = FindBestSpellTarget(card);
-            if (target == null) return false;
-            if (!Spend(card.playCost)) return false;
-
-            if (card.healAmount > 0) target.ModifySoldiers(card.healAmount);
-            if (card.damageAmount > 0) target.DamageAllSoldiers(card.damageAmount);
-            if (card.attackBuff != 0f || card.hpBuff != 0f || card.speedBuff != 0f)
-                target.ApplyBuff(card.attackBuff, card.hpBuff, card.speedBuff);
-
-            Hand.Remove(card);
-            return true;
-        }
-
-        Regiment FindBestSpellTarget(CardData card)
-        {
-            Regiment best = null;
-            int bestScore = int.MinValue;
-            foreach (var reg in gm.RegimentsOf(Team))
-            {
-                int score;
-                if (card.healAmount > 0)
-                {
-                    // Heal: most wounded regiment
-                    score = GameConfig.RegimentSize - reg.AliveCount;
-                }
-                else if (card.damageAmount > 0)
-                {
-                    // Damage spell: hit the strongest ENEMY — but spells target
-                    // own side in the original design, so skip if no sense
-                    return null;
-                }
-                else
-                {
-                    // Buff: strongest regiment
-                    score = reg.AliveCount;
-                }
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = reg;
-                }
-            }
-            return best;
-        }
+        /// <summary>This player's living regiments (spell targeting helper for card effects).</summary>
+        public List<Regiment> FriendlyRegiments => gm.RegimentsOf(Team);
     }
 }

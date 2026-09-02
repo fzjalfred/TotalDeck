@@ -3,11 +3,16 @@ using UnityEngine;
 namespace TotalDeck.Cards
 {
     /// <summary>
-    /// Placeholder — ranged troop. Not implemented yet.
-    /// TODO: ranged attack behaviour and regiment integration.
+    /// Placeholder — ranged troop. Unplayable until implemented.
+    /// TODO: ranged attack behaviour, own regiment prefab and stats.
     /// </summary>
-    public class ArcherCard : MonoBehaviour
+    public class ArcherCard : ICardEffect
     {
-        // Placeholder card - TODO: implement
+        public bool CanPlay(CardData card, PlayerState caster, Vector3 position, Regiment clickedTarget) => false;
+
+        public void Execute(CardData card, PlayerState caster, Vector3 position, Regiment clickedTarget)
+        {
+            // Placeholder card - TODO: implement
+        }
     }
 }
