@@ -58,6 +58,10 @@ namespace TotalDeck
         public const float AttackCooldownMax = 1.2f;
         public const float AttackRange = 2.2f;
         public const float EngageRadius = 6f;
+        // Melee Response: released soldiers may never stray farther than this
+        // from their regiment anchor — keeps the brawl pooled around the fight
+        // instead of running off in chase chains
+        public const float MeleeBlobLeash = 18f;
 
         // King of the Hill
         public const float HillRadius = 16f;         // circle size at map center

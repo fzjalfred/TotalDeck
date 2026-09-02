@@ -66,6 +66,30 @@ namespace TotalDeck
             }
         }
 
+        // ── Melee Response (TW-style) ──────────────────────
+        // Once more than this fraction of alive soldiers has made contact,
+        // the regiment releases formation: soldiers stop following slots
+        // and fight freely (drift around friends, pick their own targets).
+        // A fresh move/attack order re-forms the regiment.
+        const float MeleeReleaseThreshold = 0.25f;
+
+        public bool MeleeReleased { get; private set; }
+
+        /// <summary>Cancel the melee release so soldiers walk back to slots.</summary>
+        public void ReformFormation() => MeleeReleased = false;
+
+        float EngagedFraction()
+        {
+            if (AliveCount == 0) return 0f;
+            int fighting = 0;
+            foreach (var s in Soldiers)
+            {
+                if (s == null || !s.gameObject.activeSelf) continue;
+                if (s.IsFighting) fighting++;
+            }
+            return (float)fighting / AliveCount;
+        }
+
         void OnDestroy()
         {
             gameManager?.UnregisterRegiment(this);
@@ -161,6 +185,12 @@ namespace TotalDeck
 
             if (GameManager.Instance.CurrentPhase == GamePhase.Combat)
             {
+                // Melee Response: >25% in contact → release the formation
+                if (!MeleeReleased && EngagedFraction() > MeleeReleaseThreshold)
+                {
+                    MeleeReleased = true;
+                    Debug.Log($"[Regiment] {name} melee released ({EngagedFraction():P0} engaged)");
+                }
                 HandleCombatMovement();
             }
             // Planning phase: battlefield paused — freeze the anchor so
@@ -227,11 +257,9 @@ namespace TotalDeck
             }
         }
 
-        /// <summary>
-        /// The regiment currently pressing us: the parent of the first
+        /// <summary>The regiment currently pressing us: the parent of the first
         /// enemy our fighting soldiers are in contact with. Cheap scan —
-        /// only runs while IsEngaged.
-        /// </summary>
+        /// only runs while IsEngaged.</summary>
         Regiment FindPressingRegiment()
         {
             foreach (var s in Soldiers)
@@ -250,6 +278,27 @@ namespace TotalDeck
         }
 
         /// <summary>
+        /// Closest living enemy regiment — used by released soldiers to drift
+        /// back toward the fight when nothing is in melee reach.
+        /// </summary>
+        public Regiment FindNearestEnemyRegiment()
+        {
+            Regiment best = null;
+            float bestDist = float.MaxValue;
+            foreach (var reg in GameManager.Instance.AllRegiments)
+            {
+                if (reg == null || reg.Team == Team || reg.AliveCount == 0) continue;
+                float d = Vector3.Distance(reg.transform.position, transform.position);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = reg;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
         /// Feed each soldier its formation slot in world space;
         /// the soldier walks there on its own (Soldier.Update).
         /// On rank gaps (deaths) the formation compacts lazily: the
@@ -263,6 +312,10 @@ namespace TotalDeck
                 CompactFormation();
                 formationDirty = false;
             }
+
+            // Melee-released: soldiers fight freely — no formation slot feeds.
+            // CompactFormation above keeps slot data fresh for the next reform.
+            if (MeleeReleased) return;
 
             for (int i = 0; i < Soldiers.Count && i < formationOffsets.Count; i++)
             {
@@ -300,12 +353,14 @@ namespace TotalDeck
             moveQueue.Clear();
             targetPosition = position;
             targetEnemyRegiment = null;
+            ReformFormation(); // fresh order → walk back into line
             DisengageAll();
         }
 
         public void QueueMoveTarget(Vector3 position)
         {
             moveQueue.Enqueue(position);
+            ReformFormation(); // fresh order → walk back into line
             DisengageAll();
         }
 
@@ -346,6 +401,7 @@ namespace TotalDeck
         {
             moveQueue.Clear();
             targetEnemyRegiment = enemy;
+            ReformFormation(); // fresh charge: re-form, release again on contact
         }
 
         // ── Soldier Modification ──────────────────────────

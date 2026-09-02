@@ -137,21 +137,28 @@ namespace TotalDeck
                     SetEngaged(null);
 
                 // Auto-engage behavior:
+                // - Released regiment (melee blob): fight freely — chase
+                //   anything in reach, no timeout, never walk back to slots
                 // - Attack order: charge any foe within engage radius (front rank
                 //   dives in; back ranks follow the advancing formation slots)
                 // - Idle regiment: seek foes within engage radius, break off to fight
                 // - March order: hold the column, fight on the move instead
-                bool chase = ParentRegiment.IsAttacking || !ParentRegiment.IsMoving;
+                bool released = ParentRegiment.MeleeReleased;
+                bool chase = released || ParentRegiment.IsAttacking || !ParentRegiment.IsMoving;
                 if (engagedEnemy == null && chase)
                 {
                     Soldier found = FindNearestEnemy(GameConfig.EngageRadius);
+                    // Released blobs must not stretch the fight away from the
+                    // regiment — skip targets beyond the anchor leash
+                    if (found != null && released && IsBeyondLeash(found.transform.position))
+                        found = null;
                     if (found != null)
                     {
                         SetEngaged(found);
                         chaseTimer = ChaseGiveUpTime;
                     }
                 }
-                else if (engagedEnemy != null && ParentRegiment.IsAttacking == false && ParentRegiment.IsMoving)
+                else if (engagedEnemy != null && !ParentRegiment.IsAttacking && !released && ParentRegiment.IsMoving)
                 {
                     // A move order arrived mid-fight: drop the chase, keep swinging
                     SetEngaged(null);
@@ -160,8 +167,10 @@ namespace TotalDeck
                 if (engagedEnemy != null)
                 {
                     // Non-attack-order chases time out: no contact within the
-                    // window means the foe got away — fall back into line
-                    if (!ParentRegiment.IsAttacking)
+                    // window means the foe got away — fall back into line.
+                    // Released soldiers chase indefinitely (melee blob) but
+                    // never beyond the anchor leash.
+                    if (!ParentRegiment.IsAttacking && !released)
                     {
                         chaseTimer -= Time.deltaTime;
                         if (chaseTimer <= 0f || !IsInCombatWith(engagedEnemy))
@@ -169,17 +178,45 @@ namespace TotalDeck
                             SetEngaged(null);
                         }
                     }
+                    else if (released && IsBeyondLeash(engagedEnemy.transform.position))
+                    {
+                        // Target dragged the chase off the leash — release it
+                        SetEngaged(null);
+                    }
 
                     if (engagedEnemy != null)
                         EngageEnemy(engagedEnemy);
                 }
 
-                if (engagedEnemy == null && hasFormationTarget)
+                if (engagedEnemy == null)
                 {
-                    // Follow the formation (which advances toward the enemy on
-                    // attack orders) AND swing at anyone in contact along the way
-                    fightingMove = SwingAtContact();
-                    MoveTowardFormation(fightingMove ? FightMoveMultiplier : 1f);
+                    if (released)
+                    {
+                        // Blob mode with nothing in melee reach: drift toward
+                        // the nearest enemy regiment's center (separation
+                        // steering routes around friends), leashed to the
+                        // anchor. Keeps the brawl pooled around the fight.
+                        SwingAtContact();
+                        var foeReg = ParentRegiment.FindNearestEnemyRegiment();
+                        if (foeReg != null && !IsBeyondLeash(foeReg.transform.position))
+                        {
+                            Vector3 toFoe = foeReg.transform.position - transform.position;
+                            toFoe.y = 0f;
+                            if (toFoe.magnitude > GameConfig.AttackRange * 0.8f)
+                            {
+                                Vector3 step = toFoe.normalized * (moveSpeed * 0.7f * Time.deltaTime);
+                                step += ComputeSeparation() * moveSpeed * Time.deltaTime;
+                                transform.position += step;
+                            }
+                        }
+                    }
+                    else if (hasFormationTarget)
+                    {
+                        // Follow the formation (which advances toward the enemy on
+                        // attack orders) AND swing at anyone in contact along the way
+                        fightingMove = SwingAtContact();
+                        MoveTowardFormation(fightingMove ? FightMoveMultiplier : 1f);
+                    }
                 }
 
                 // Hard collision AFTER all movement: friend or foe, no two
@@ -411,6 +448,16 @@ namespace TotalDeck
             enemy.TakeDamage(attack, this);
             attackCooldown = Random.Range(GameConfig.AttackCooldownMin, GameConfig.AttackCooldownMax);
             return true;
+        }
+
+        /// <summary>
+        /// True when a point lies beyond the melee-blob leash around our
+        /// regiment anchor — released soldiers never chase or drift past it.
+        /// </summary>
+        bool IsBeyondLeash(Vector3 point)
+        {
+            return ParentRegiment == null ||
+                   Vector3.Distance(point, ParentRegiment.transform.position) > GameConfig.MeleeBlobLeash;
         }
 
         /// <summary>
